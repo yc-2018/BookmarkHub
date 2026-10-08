@@ -1,8 +1,13 @@
 #root {
-    width: 15rem;
+    width: 17rem;
     min-height: 11rem;
     height: auto;
     position: relative;
+}
+
+/* 对比面板需要更宽的空间 */
+body.wide #root {
+    width: 26rem;
 }
 
 .list-group-item {
@@ -18,6 +23,9 @@
     pointer-events: auto !important;
     border: none !important;
     width: 100% !important;
+    /* 默认是 absolute，会盖住上方的结果提示条 */
+    position: static !important;
+    float: none !important;
 }
 
 .dropdown-item,
@@ -37,4 +45,258 @@
 .dropdown-item a,
 .dropdown-item-text a {
     color: inherit;
+}
+
+/* ---------- 底部信息栏 ---------- */
+
+.popup-foot {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    color: #6c757d;
+    border-top: 1px solid #f1f3f5;
+}
+
+.popup-foot a {
+    color: #6c757d !important;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.popup-foot a:hover {
+    color: #0d6efd !important;
+}
+
+.popup-foot-counts {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.popup-foot-counts b {
+    color: #212529;
+}
+
+/* ---------- 结果提示 ---------- */
+
+.popup-alert {
+    font-size: 12px;
+    margin: .5rem .5rem 0;
+    padding: .4rem .6rem;
+    border-radius: .25rem;
+}
+
+.popup-alert .close {
+    padding: .25rem .5rem;
+    font-size: 1.1rem;
+}
+
+/* ---------- 对比视图 ---------- */
+
+.compare-view {
+    display: flex;
+    flex-direction: column;
+    padding: .5rem;
+}
+
+.compare-head {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.compare-back {
+    background: none;
+    border: none;
+    padding: 0 .25rem;
+    cursor: pointer;
+    color: #6c757d;
+    line-height: 1;
+}
+
+.compare-back:hover {
+    color: #212529;
+}
+
+.compare-title {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.diff-summary {
+    font-size: 12px;
+    padding: .5rem .25rem .4rem;
+}
+
+.diff-summary-sep {
+    margin: 0 .35rem;
+    color: #adb5bd;
+}
+
+.diff-summary-meta {
+    color: #6c757d;
+    font-size: 11px;
+    margin-top: .15rem;
+}
+
+.diff-identical {
+    font-size: 12px;
+    color: #0f5132;
+    background: #d1e7dd;
+    border-radius: .25rem;
+    padding: .6rem;
+    text-align: center;
+}
+
+.diff-groups {
+    max-height: 22rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.diff-group {
+    border-left: 3px solid #dee2e6;
+    margin-bottom: .35rem;
+    padding-left: .4rem;
+}
+
+.diff-group.diff-local {
+    border-left-color: #198754;
+}
+
+.diff-group.diff-remote {
+    border-left-color: #0d6efd;
+}
+
+.diff-group.diff-change {
+    border-left-color: #ffc107;
+}
+
+.diff-group-head {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: .25rem 0;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    color: #212529;
+}
+
+.diff-group-title {
+    flex: 1;
+}
+
+.diff-group-count {
+    font-weight: 600;
+    border: 1px solid #dee2e6;
+}
+
+.diff-group-body {
+    padding-bottom: .25rem;
+}
+
+.diff-group-hint {
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: .25rem;
+}
+
+.diff-row {
+    padding: .2rem .35rem;
+    border-radius: .2rem;
+}
+
+.diff-row:nth-child(odd) {
+    background: #f8f9fa;
+}
+
+.diff-row-title,
+.diff-row-sub {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.diff-row-title {
+    font-size: 12px;
+}
+
+.diff-row-sub {
+    font-size: 10px;
+    color: #6c757d;
+}
+
+.diff-more {
+    background: none;
+    border: none;
+    padding: .2rem .35rem;
+    font-size: 11px;
+    color: #0d6efd;
+    cursor: pointer;
+}
+
+.compare-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    padding-top: .5rem;
+    border-top: 1px solid #e9ecef;
+    margin-top: .25rem;
+}
+
+.compare-actions .btn {
+    font-size: 12px;
+    /* basis 设 0，两个主按钮等分剩余宽度并可收缩，避免把「返回」挤出可视区 */
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.compare-actions .btn-light {
+    flex: 0 0 auto;
+}
+
+.compare-actions svg {
+    vertical-align: middle;
+    margin-right: .2rem;
+}
+
+/* ---------- 确认框 ---------- */
+
+/* 弹窗宽度很窄，让确认框铺满可用空间 */
+.modal-dialog {
+    max-width: none !important;
+    margin: .5rem !important;
+}
+
+.modal-content {
+    font-size: 12px;
+}
+
+.modal-header,
+.modal-footer {
+    padding: .5rem .75rem;
+}
+
+.modal-body {
+    padding: .75rem;
+}
+
+.modal-footer .btn {
+    font-size: 12px;
+}
+
+/* 打开确认框时 body 会被加上 padding-right，窄弹窗里会抖 */
+body.modal-open {
+    padding-right: 0 !important;
+    overflow: hidden;
 }
