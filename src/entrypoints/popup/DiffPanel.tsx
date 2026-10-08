@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Badge } from 'react-bootstrap'
 import { AiOutlineDown, AiOutlineRight } from 'react-icons/ai'
-import { DiffResult, FlatEntry, MovedEntry, TitleChangedEntry } from '../../utils/diff'
+import { DiffResult, FlatEntry, MovedEntry, OrderChangedEntry, TitleChangedEntry } from '../../utils/diff'
 
 const PREVIEW_LIMIT = 15
 
@@ -78,6 +78,15 @@ function titleRow(e: TitleChangedEntry, i: number) {
     )
 }
 
+function orderRow(e: OrderChangedEntry, i: number) {
+    return (
+        <div className="diff-row" key={i} title={e.path || '根目录'}>
+            <div className="diff-row-title">{e.path || '根目录'}</div>
+            <div className="diff-row-sub">该文件夹内 {e.count} 项的先后顺序不同</div>
+        </div>
+    )
+}
+
 export const DiffPanel: React.FC<{ diff: DiffResult }> = ({ diff }) => {
     const meta = diff.remoteMeta
     return (
@@ -97,6 +106,12 @@ export const DiffPanel: React.FC<{ diff: DiffResult }> = ({ diff }) => {
                 <div className="diff-identical">本地与远端完全一致，无需同步</div>
             ) : (
                 <div className="diff-groups">
+                    {diff.unexplainedDifference && (
+                        <div className="diff-unexplained">
+                            两边内容不一致，但差异无法归类到下列任何一项，可能来自不可见的元数据。
+                            同步仍会按整棵树覆盖。
+                        </div>
+                    )}
                     <DiffGroup title="仅本地有" hint="上传后远端会新增；下载后这些会从本地消失" tone="local" count={diff.localOnly.length}>
                         <Rows>{diff.localOnly.map(entryRow)}</Rows>
                     </DiffGroup>
@@ -108,6 +123,9 @@ export const DiffPanel: React.FC<{ diff: DiffResult }> = ({ diff }) => {
                     </DiffGroup>
                     <DiffGroup title="标题变化" hint="同一位置的同一个网址，两边标题不同（远端 → 本地）" tone="change" count={diff.titleChanged.length}>
                         <Rows>{diff.titleChanged.map(titleRow)}</Rows>
+                    </DiffGroup>
+                    <DiffGroup title="排列顺序变化" hint="文件夹内的书签没有增减，只是拖动过顺序" tone="change" count={diff.orderChanged.length}>
+                        <Rows>{diff.orderChanged.map(orderRow)}</Rows>
                     </DiffGroup>
                     <DiffGroup title="仅本地有的文件夹" hint="上传后远端会新增这些文件夹" tone="local" count={diff.folderLocalOnly.length}>
                         <Rows>{diff.folderLocalOnly.map(entryRow)}</Rows>

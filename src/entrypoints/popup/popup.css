@@ -47,6 +47,74 @@ body.wide #root {
     color: inherit;
 }
 
+/* ---------- 未配置引导 / 加载态 ---------- */
+
+.popup-loading {
+    display: flex !important;
+    align-items: center;
+    gap: .4rem;
+    color: #6c757d;
+    font-size: 12px !important;
+}
+
+.setup-guide {
+    padding: .75rem 1rem 1rem;
+}
+
+.setup-guide-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: .3rem;
+}
+
+.setup-guide-text {
+    font-size: 11px;
+    color: #6c757d;
+    line-height: 1.5;
+    margin-bottom: .6rem;
+}
+
+.setup-guide .btn {
+    font-size: 12px;
+}
+
+/* ---------- 清空 / 设置 并排一行 ---------- */
+
+.popup-split-row {
+    display: flex;
+}
+
+.popup-split-item {
+    flex: 1 1 0;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: .5rem 1rem;
+    font-size: 12px;
+    text-align: center;
+    color: #212529;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.popup-split-item + .popup-split-item {
+    border-left: 1px solid #f1f3f5;
+}
+
+.popup-split-item:hover:not(:disabled) {
+    background: #f8f9fa;
+}
+
+.popup-split-item:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.popup-split-danger:hover:not(:disabled) {
+    background: #fdf2f2;
+    color: #dc3545;
+}
+
 /* ---------- 底部信息栏 ---------- */
 
 .popup-foot {
@@ -148,6 +216,16 @@ body.wide #root {
     border-radius: .25rem;
     padding: .6rem;
     text-align: center;
+}
+
+.diff-unexplained {
+    font-size: 11px;
+    color: #664d03;
+    background: #fff3cd;
+    border-radius: .25rem;
+    padding: .5rem;
+    margin-bottom: .4rem;
+    line-height: 1.5;
 }
 
 .diff-groups {

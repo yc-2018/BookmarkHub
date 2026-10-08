@@ -13,6 +13,7 @@ import { BookmarkInfo } from '../../utils/models'
 import { getBookmarkCount } from '../../utils/bookmarks'
 import { DiffResult } from '../../utils/diff'
 import { OperName, sendOper } from '../../utils/messages'
+import { Setting } from '../../utils/setting'
 import { DiffPanel } from './DiffPanel'
 
 type Action = 'upload' | 'download' | 'removeAll'
@@ -36,6 +37,14 @@ const Popup: React.FC = () => {
     const [remoteBookmarks, setRemoteBookmarks] = useState<BookmarkInfo[] | undefined>(undefined)
     const [localCount, setLocalCount] = useState<number | null>(null)
     const [remoteCount, setRemoteCount] = useState<number | null>(null)
+    // null = 还在读取配置，读完才知道该显示菜单还是引导去设置
+    const [configured, setConfigured] = useState<boolean | null>(null)
+
+    useEffect(() => {
+        Setting.build().then(s => {
+            setConfigured(!!(s.githubToken && s.gistID && s.gistFileName))
+        }).catch(() => setConfigured(false))
+    }, [])
 
     // 本地数量直接实时算，远端数量读缓存
     const refreshCounts = useCallback(async () => {
@@ -169,22 +178,42 @@ const Popup: React.FC = () => {
 
             {view === 'menu' ? (
                 <Dropdown.Menu show>
-                    <Dropdown.Item as="button" disabled={!!busy} onClick={() => confirmUpload()} title="把本地浏览器的书签全部上传到远端 Gist">
-                        {busyIcon('upload', <AiOutlineCloudUpload />)}上传书签
-                    </Dropdown.Item>
-                    <Dropdown.Item as="button" disabled={!!busy} onClick={() => confirmDownload()} title="先清空本地书签，再用远端 Gist 的书签重建">
-                        {busyIcon('download', <AiOutlineCloudDownload />)}下载书签
-                    </Dropdown.Item>
-                    <Dropdown.Item as="button" disabled={!!busy} onClick={runCompare} title="拉取远端书签与本地比对，列出差异后再决定同步方向">
-                        {busyIcon('compare', <AiOutlineSwap />)}对比本地与远端
-                    </Dropdown.Item>
-                    <Dropdown.Item as="button" disabled={!!busy} onClick={confirmRemoveAll} title="清空本地浏览器书签，请先做好备份">
-                        {busyIcon('removeAll', <AiOutlineClear />)}清空本地书签
-                    </Dropdown.Item>
-                    <Dropdown.Divider />
-                    <Dropdown.Item as="button" disabled={!!busy} onClick={openSettings}>
-                        <AiOutlineSetting />设置
-                    </Dropdown.Item>
+                    {configured === null ? (
+                        <Dropdown.ItemText className="popup-loading">
+                            <Spinner animation="border" size="sm" /> 读取配置…
+                        </Dropdown.ItemText>
+                    ) : !configured ? (
+                        <div className="setup-guide">
+                            <div className="setup-guide-title">尚未完成配置</div>
+                            <div className="setup-guide-text">
+                                同步书签需要先填写 GitHub Token 与 Gist ID，配置完成后即可使用上传、下载和对比。
+                            </div>
+                            <Button size="sm" variant="primary" block onClick={openSettings}>
+                                <AiOutlineSetting />前往设置
+                            </Button>
+                        </div>
+                    ) : (
+                        <>
+                            <Dropdown.Item as="button" disabled={!!busy} onClick={() => confirmUpload()} title="把本地浏览器的书签全部上传到远端 Gist">
+                                {busyIcon('upload', <AiOutlineCloudUpload />)}上传书签
+                            </Dropdown.Item>
+                            <Dropdown.Item as="button" disabled={!!busy} onClick={() => confirmDownload()} title="先清空本地书签，再用远端 Gist 的书签重建">
+                                {busyIcon('download', <AiOutlineCloudDownload />)}下载书签
+                            </Dropdown.Item>
+                            <Dropdown.Item as="button" disabled={!!busy} onClick={runCompare} title="拉取远端书签与本地比对，列出差异后再决定同步方向">
+                                {busyIcon('compare', <AiOutlineSwap />)}对比本地与远端
+                            </Dropdown.Item>
+                            <Dropdown.Divider />
+                            <div className="popup-split-row">
+                                <button type="button" className="popup-split-item popup-split-danger" disabled={!!busy} onClick={confirmRemoveAll} title="清空本地浏览器书签，请先做好备份">
+                                    {busyIcon('removeAll', <AiOutlineClear />)}清空书签
+                                </button>
+                                <button type="button" className="popup-split-item" disabled={!!busy} onClick={openSettings}>
+                                    <AiOutlineSetting />设置
+                                </button>
+                            </div>
+                        </>
+                    )}
                     <Dropdown.ItemText className="popup-foot">
                         <a href="https://github.com/dudor/BookmarkHub" target="_blank" title="使用帮助">
                             <AiOutlineInfoCircle />帮助
@@ -192,7 +221,7 @@ const Popup: React.FC = () => {
                         <span className="popup-foot-counts" title="本地 / 远端书签数量">
                             本地 <b>{localCount ?? '—'}</b> / 远端 <b>{remoteCount ?? '—'}</b>
                         </span>
-                        <a href="https://github.com/dudor" target="_blank" title="开发者"><AiOutlineGithub /></a>
+                        <a href="https://github.com/yc-2018" target="_blank" title="开发者"><AiOutlineGithub /></a>
                     </Dropdown.ItemText>
                 </Dropdown.Menu>
             ) : (

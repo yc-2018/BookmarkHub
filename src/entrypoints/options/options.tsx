@@ -52,7 +52,7 @@ const Options: React.FC = () => {
                     <Col sm={9} lg={9} xs={8}>
                         <Form.Control name="gistID" type="text" placeholder="请填写用于存放书签的 Gist ID" size="sm" />
                         <Form.Text className="text-muted">
-                            打开你的 Gist 页面，地址栏最后一段即为 Gist ID。建议新建一个私有 Gist 专用。
+                            打开你的 <a href="https://gist.github.com/" target="_blank" rel="noreferrer">Gist 页面</a>，地址栏最后一段即为 Gist ID。建议新建一个私有 Gist 专用。
                         </Form.Text>
                     </Col>
                 </Form.Group>

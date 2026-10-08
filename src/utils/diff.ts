@@ -32,7 +32,16 @@ export interface RemoteMeta {
     version: string
 }
 
+/** 某个文件夹内「成员相同但先后顺序不同」 */
+export interface OrderChangedEntry {
+    /** 发生顺序变化的文件夹路径，空串表示根目录 */
+    path: string
+    /** 该文件夹内的条目数 */
+    count: number
+}
+
 export interface DiffResult {
+    /** 两棵树序列化后完全一致 —— 也就是同步属于空操作 */
     identical: boolean
     localCount: number
     remoteCount: number
@@ -44,8 +53,15 @@ export interface DiffResult {
     moved: MovedEntry[]
     /** 同路径同 URL，标题不同 */
     titleChanged: TitleChangedEntry[]
+    /** 文件夹内成员没变，但排列顺序变了 */
+    orderChanged: OrderChangedEntry[]
     folderLocalOnly: FlatEntry[]
     folderRemoteOnly: FlatEntry[]
+    /**
+     * 序列化结果不一致，但上面所有分类都是空的。
+     * 说明存在对比逻辑没覆盖到的差异，不能对用户谎称「一致」。
+     */
+    unexplainedDifference: boolean
     remoteMeta?: RemoteMeta
 }
 
@@ -149,6 +165,50 @@ function extractMoved(
     return { moved, localOnly, remoteOnly: remoteSurplus.filter(r => !consumed.has(r)) }
 }
 
+/**
+ * 收集每个文件夹内子项的「有序签名列表」。
+ * 拍平后的 FlatEntry 丢掉了同级顺序，而上传时序列化的正是数组顺序，
+ * 所以同一文件夹内拖动排序必须靠这份数据才能发现。
+ */
+function collectOrder(nodes: BookmarkInfo[] | undefined): Map<string, string[]> {
+    const order = new Map<string, string[]>()
+
+    const walk = (list: BookmarkInfo[] | undefined, segments: string[]) => {
+        if (!list) return
+        const path = segments.join(' / ')
+        const sig: string[] = []
+        for (const node of list) {
+            if (node.url) {
+                sig.push('b|' + node.url)
+            } else {
+                const label = displayFolderName(node.title ?? '')
+                sig.push('f|' + label)
+                walk(node.children, [...segments, label])
+            }
+        }
+        order.set(path, sig)
+    }
+
+    walk(nodes, [])
+    return order
+}
+
+/** 成员相同、顺序不同的文件夹。成员本身有增删时交由其他分类说明，这里跳过以免重复报。 */
+function diffOrder(
+    local: Map<string, string[]>,
+    remote: Map<string, string[]>,
+): OrderChangedEntry[] {
+    const changed: OrderChangedEntry[] = []
+    for (const [path, l] of local) {
+        const r = remote.get(path)
+        if (!r) continue
+        if (l.join('\n') === r.join('\n')) continue
+        if ([...l].sort().join('\n') !== [...r].sort().join('\n')) continue
+        changed.push({ path, count: l.length })
+    }
+    return changed
+}
+
 /** 比对本地与远端两棵归一化书签树 */
 export function diffBookmarks(
     localNodes: BookmarkInfo[] | undefined,
@@ -181,23 +241,28 @@ export function diffBookmarks(
     )
 
     const folderSurplus = surplus(local.folders, remote.folders, e => e.path + SEP + e.title)
+    const orderChanged = diffOrder(collectOrder(localNodes), collectOrder(remoteNodes))
+
+    // 同步是整树覆盖，所以「是否需要同步」的唯一真实判据是序列化结果是否相等，
+    // 而不是上面那些分类是否为空。
+    const identical = JSON.stringify(localNodes ?? null) === JSON.stringify(remoteNodes ?? null)
+
+    const classified =
+        localOnly.length + remoteOnly.length + moved.length + titleChanged.length +
+        orderChanged.length + folderSurplus.localSurplus.length + folderSurplus.remoteSurplus.length
 
     return {
-        identical:
-            localOnly.length === 0 &&
-            remoteOnly.length === 0 &&
-            moved.length === 0 &&
-            titleChanged.length === 0 &&
-            folderSurplus.localSurplus.length === 0 &&
-            folderSurplus.remoteSurplus.length === 0,
+        identical,
         localCount: getBookmarkCount(localNodes),
         remoteCount: getBookmarkCount(remoteNodes),
         localOnly,
         remoteOnly,
         moved,
         titleChanged,
+        orderChanged,
         folderLocalOnly: folderSurplus.localSurplus,
         folderRemoteOnly: folderSurplus.remoteSurplus,
+        unexplainedDifference: !identical && classified === 0,
         remoteMeta,
     }
 }
