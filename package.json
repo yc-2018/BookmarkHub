@@ -10,6 +10,7 @@
   "type": "module",
   "author": "dudor",
   "license": "",
+  "packageManager": "pnpm@9.1.1",
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",

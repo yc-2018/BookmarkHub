@@ -13,5 +13,16 @@ export default defineConfig({
     optional_host_permissions: [
       "*://*/*",
     ]
+  },
+  // Firefox 审核用的源码包只需要能构建出扩展的文件。默认会把仓库里
+  // 已提交的发行 zip 一起打进去，导致每发一版体积翻倍累积。
+  zip: {
+    excludeSources: [
+      '**/*.zip',
+      'releases/**',
+      'chrome-extension-build/**',
+      'images/**',
+      '.codegraph/**',
+    ],
   }
 });
