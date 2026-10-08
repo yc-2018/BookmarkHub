@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # --generate-notes 需要历史记录来和上一个标签做对比
           fetch-depth: 0
@@ -27,10 +27,10 @@ jobs:
       # 必须在 setup-node 之前，否则 cache: pnpm 找不到 pnpm
       # 版本取自 package.json 的 packageManager 字段
       - name: 安装 pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: 安装 Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -65,12 +65,15 @@ jobs:
       - name: 产物清单
         run: ls -lh .output/*.zip
 
-      # 手动触发时没有 Release 可挂，产物留在这里供下载
+      # 仅手动触发时需要：标签触发时产物已经挂在 Release 上，不必重复上传
       - name: 上传构建产物
-        uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
         with:
           name: bookmarkhub-${{ steps.meta.outputs.version }}
           path: .output/*.zip
+          # .output 以点开头，upload-artifact 默认会把它当隐藏内容跳过
+          include-hidden-files: true
           if-no-files-found: error
 
       - name: 创建 Release 并附上产物
