@@ -162,6 +162,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 - **没有 i18n**。`_locales/` 和 `default_locale` 已全部移除，中文直接写在代码里。新增文案直接写中文，不要重新引入 `browser.i18n.getMessage`
 - 依赖停留在 Bootstrap 4 时代：`react-bootstrap@1` + `bootstrap@4`。用的是 v1 API（`InputGroup.Append`、`Badge variant`、`Button block`），不要混用 v2 写法
 - 设置页表单由 `optionsStorage.syncForm()` 直接操作 DOM 完成读写，字段只需带正确的 `name`，**不需要** react-hook-form 之类的表单库
+- **设置页里不能有 React 受控输入**（不要传 `value`）。浏览器对 `<select>` 先派发 `input` 再派发 `change`；`input` 触发的任何重渲染（比如「已保存」徽标）都会把受控 `value` 写回旧状态，`change` 到达时值已被改回去，表现为「选了又弹回」。让 syncForm 拥有 DOM 值，React 只通过 `onChange` 和 `browser.storage.onChanged` 镜像它。用 CDP 模拟时必须按真实顺序派发 `input` → `change`，反过来会把这类问题盖住
 - 破坏性操作（上传、下载、清空）必须先弹确认框并写明后果，执行期间要有加载动画
 - 未完成配置时隐藏上传/下载/对比，只显示引导去设置 —— 这些操作没有 token 和 gist id 必然失败
 - 弹窗默认 17rem 宽，对比面板靠 `body.wide` 切到 26rem

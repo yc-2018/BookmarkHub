@@ -62,15 +62,30 @@ const Options: React.FC = () => {
     const [saved, setSaved] = useState(false);
     const [provider, setProvider] = useState<ProviderId>('github');
     const savedTimer = useRef<number | undefined>(undefined);
+    const selectRef = useRef<HTMLSelectElement>(null);
 
     useEffect(() => {
         // syncForm 直接操作 DOM 完成读取与保存，表单字段只需带上正确的 name
         optionsStorage.syncForm('#formOptions');
-        // 平台选择要驱动界面切换，所以额外取一次当前值
-        optionsStorage.getAll().then(o => {
+        // 平台选择要驱动界面切换，所以把它镜像进 React 状态：
+        // 初始读一次；之后 storage 有变化（syncForm 回写、别的窗口改了）也跟着更新
+        const mirror = () => optionsStorage.getAll().then(o => {
             setProvider(o.provider === 'gitee' ? 'gitee' : 'github');
         });
+        mirror();
+        const onStorage = (_changes: unknown, area: string) => { if (area === 'sync') mirror(); };
+        browser.storage.onChanged.addListener(onStorage);
+        return () => browser.storage.onChanged.removeListener(onStorage);
     }, [])
+
+    // provider 变化时（用户选择或 storage 镜像）把 DOM 同步过去。
+    // 只依赖 provider：无关的重渲染（比如「已保存」徽标）不会碰这个 select —— 这正是与受控组件的区别。
+    // 也补上 syncForm 在表单有焦点时不回写 DOM 的空档。
+    useEffect(() => {
+        if (selectRef.current && selectRef.current.value !== provider) {
+            selectRef.current.value = provider;
+        }
+    }, [provider])
 
     // syncForm 是静默保存的，这里给一个短暂的「已保存」反馈
     const flashSaved = () => {
@@ -99,7 +114,11 @@ const Options: React.FC = () => {
                             as="select"
                             name="provider"
                             size="sm"
-                            value={provider}
+                            // 故意不传 value：浏览器对 select 先派发 input 再派发 change，
+                            // input 触发的「已保存」重渲染会把受控 value 写回旧值，change 到达时已被改回去。
+                            // 让 syncForm 拥有 DOM 值（与其他字段一致），React 只通过 onChange 和 storage 监听镜像它。
+                            defaultValue="github"
+                            ref={selectRef}
                             onChange={e => setProvider(e.target.value === 'gitee' ? 'gitee' : 'github')}
                         >
                             <option value="github">GitHub（gist.github.com）</option>
