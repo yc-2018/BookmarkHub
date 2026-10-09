@@ -9,7 +9,12 @@ export default defineConfig({
     name: "BookmarkHub - 书签同步",
     description: "在不同浏览器之间通过 GitHub Gist 同步书签",
     permissions: ['storage', 'bookmarks', 'notifications'],
-    host_permissions: ["https://*.github.com/", "https://*.githubusercontent.com/"],
+    host_permissions: [
+      "https://*.github.com/",
+      "https://*.githubusercontent.com/",
+      "https://gitee.com/",
+      "https://*.gitee.com/",
+    ],
     optional_host_permissions: [
       "*://*/*",
     ]

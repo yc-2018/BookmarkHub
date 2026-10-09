@@ -1,5 +1,6 @@
 import BookmarkService from '../utils/services'
-import { Setting } from '../utils/setting'
+import { HTTPError } from 'ky'
+import { Setting, activeCredentials, providerInfo } from '../utils/setting'
 import iconLogo from '../assets/icon.png'
 import { OperType, BookmarkInfo, SyncDataInfo, RootBookmarksType, BrowserType } from '../utils/models'
 import { detectBrowserType, formatBookmarks, getBookmarkCount } from '../utils/bookmarks'
@@ -30,7 +31,7 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleMessage(msg)
       .then(sendResponse)
-      .catch((e: any) => sendResponse({ ok: false, error: errorText(e) }))
+      .catch(async (e: any) => sendResponse({ ok: false, error: await describeError(e) }))
     return true
   })
 
@@ -98,17 +99,32 @@ export default defineBackground(() => {
     return String(e?.message ?? e ?? '未知错误')
   }
 
-  /** 校验 Gist 配置，缺项时抛出中文错误 */
+  /** HTTP 错误时附上服务端返回的 message，令牌错误、ID 不存在这类问题才看得出原因 */
+  async function describeError(e: any): Promise<string> {
+    if (e instanceof HTTPError) {
+      let detail = ''
+      try {
+        const j: any = await e.response.clone().json()
+        detail = j?.message ?? (Array.isArray(j?.messages) ? j.messages.join('；') : '')
+      } catch { }
+      return `HTTP ${e.response.status}${detail ? '：' + detail : ''}`
+    }
+    return errorText(e)
+  }
+
+  /** 校验当前所选平台的配置，缺项时抛出中文错误 */
   async function requireGistConfig() {
     const setting = await Setting.build()
-    if (!setting.githubToken) {
-      throw new Error("未配置 GitHub Token")
+    const info = providerInfo(setting)
+    const { token, gistID } = activeCredentials(setting)
+    if (!token) {
+      throw new Error(`未配置 ${info.name} Token`)
     }
-    if (!setting.gistID) {
-      throw new Error("未配置 Gist ID")
+    if (!gistID) {
+      throw new Error(`未配置 ${info.name} 代码片段 ID`)
     }
     if (!setting.gistFileName) {
-      throw new Error("未配置 Gist 文件名")
+      throw new Error("未配置文件名")
     }
     return setting
   }
@@ -149,8 +165,9 @@ export default defineBackground(() => {
     }
     catch (error: any) {
       console.error(error)
-      await notify("上传书签", `错误：${errorText(error)}`)
-      return { ok: false, error: errorText(error) }
+      const reason = await describeError(error)
+      await notify("上传书签", `错误：${reason}`)
+      return { ok: false, error: reason }
     }
   }
 
@@ -165,11 +182,11 @@ export default defineBackground(() => {
         const setting = await requireGistConfig()
         const gist = await BookmarkService.get()
         if (!gist) {
-          throw new Error(`远端未找到 Gist 文件 ${setting.gistFileName}`)
+          throw new Error(`远端未找到文件 ${setting.gistFileName}`)
         }
         const syncdata: SyncDataInfo = JSON.parse(gist)
         if (!syncdata.bookmarks || syncdata.bookmarks.length === 0) {
-          throw new Error(`远端 Gist 文件 ${setting.gistFileName} 内容为空`)
+          throw new Error(`远端文件 ${setting.gistFileName} 内容为空`)
         }
         bookmarks = syncdata.bookmarks
       }
@@ -183,8 +200,9 @@ export default defineBackground(() => {
     }
     catch (error: any) {
       console.error(error)
-      await notify("下载书签", `错误：${errorText(error)}`)
-      return { ok: false, error: errorText(error) }
+      const reason = await describeError(error)
+      await notify("下载书签", `错误：${reason}`)
+      return { ok: false, error: reason }
     }
   }
 
@@ -196,8 +214,9 @@ export default defineBackground(() => {
     }
     catch (error: any) {
       console.error(error)
-      await notify("清空本地书签", `错误：${errorText(error)}`)
-      return { ok: false, error: errorText(error) }
+      const reason = await describeError(error)
+      await notify("清空本地书签", `错误：${reason}`)
+      return { ok: false, error: reason }
     }
   }
 
@@ -207,7 +226,7 @@ export default defineBackground(() => {
       const setting = await requireGistConfig()
       const gist = await BookmarkService.get()
       if (!gist) {
-        throw new Error(`远端未找到 Gist 文件 ${setting.gistFileName}`)
+        throw new Error(`远端未找到文件 ${setting.gistFileName}`)
       }
       const syncdata: SyncDataInfo = JSON.parse(gist)
       const localBookmarks = formatBookmarks(await getBookmarks())
@@ -221,7 +240,7 @@ export default defineBackground(() => {
     }
     catch (error: any) {
       console.error(error)
-      return { ok: false, error: errorText(error) }
+      return { ok: false, error: await describeError(error) }
     }
   }
 

@@ -116,6 +116,24 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 `wxt.config.ts` 设了 `extensionApi: 'chrome'`，**没有 webextension-polyfill**。因此 `onMessage` 监听器**不能返回 Promise**，必须 `sendResponse` + `return true`。所有操作统一返回 `OperResult`（`{ ok, error?, ... }`），失败信息要能在弹窗里显示出来，不能只靠系统通知 —— 用户可能关掉了通知。
 
+### 存储平台（GitHub / Gitee）
+
+`setting.ts` 的 `PROVIDERS` 表定义两个平台，`provider` 字段决定走哪个。两边各存一套凭据（`githubToken`/`gistID` 与 `giteeToken`/`giteeGistID`），`activeCredentials()` 取当前这套，`isConfigured()` 按当前平台判断；`gistFileName` 两平台共用。
+
+两个平台的代码片段接口形状一致（路径、`files` 哈希、响应里的 `content`/`truncated`/`raw_url` 字段名都相同），差别只在 `http.ts` 的接入方式：GitHub 走 `Authorization` 头 + 自家 Accept 头；Gitee 走 `access_token` 查询参数，不认 GitHub 那套头。
+
+以下几点都在真实 Gitee 片段上实测过（2026-10-09），不是推断：
+
+- **PATCH 必须用 JSON 请求体**。文档把 `files` 标成 formData，但表单编码里传 JSON 字符串会被拒：`{"messages":["files is invalid"]}`。
+- **Gitee 服务端拒收 emoji**：原文写入返回 400 `Mysql2::Error: Incorrect string value: '\xF0\x9F\x93\x9A...'` —— 存储用的是 3 字节 utf8，装不下 4 字节字符。`services.ts` 的 `escapeAstralChars` 在写入前把代理对改写成 `\uXXXX`，仍是合法 JSON，读回 `JSON.parse` 原样还原，标题里的 emoji 不会丢。中文是 BMP 字符不受影响、不转义，远端内容仍可读。只对 Gitee 做，GitHub 保持原文。
+- 单文件 1 MB 写入/读回正常、不截断，书签数据量远够用。
+- `files[name] = null` 可删除文件，与 GitHub 语义一致。
+- 文档说 `description` 限 30 字符，但 PATCH 时并不强制；代码仍按 30 截断，无害。
+
+设置页里**非活动平台的凭据组保留在 DOM 中但整体 `disabled`**。`syncForm` 保存时读取表单内所有非 disabled 字段并与已存值合并写回，所以 disabled 的那组不会被碰。不能改成一组输入框按平台换 `name`：切换瞬间输入框是空的，会以另一个平台的键名存成空串、把凭据抹掉。这一点已用 CDP 实测验证。
+
+`webext-options-sync` 存储的两个细节，写测试直接读 storage 时会踩：配置经 lz-string `compressToEncodedURIComponent` 压缩成字符串存在 `storage.sync.options` 下；保存前剔除等于默认值的键，读取时再合并默认值。要拿完整对象走库的 `getAll()`，或自己解压后合并默认值。
+
 ### 对比逻辑
 
 `DiffResult.identical` 取自**两棵树序列化后是否相等**，而不是「各分类是否为空」。因为同步是整树覆盖，序列化相等才真正等价于「同步是空操作」。
@@ -152,7 +170,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 ## 其他注意事项
 
 - 上传前会剥掉所有浏览器私有字段（`dateAdded`、`id`、`index`、`parentId` 等）
-- GitHub 侧要求：带 `gist` 权限的 Token、Gist ID、文件名（默认 `BookmarkHub`）
-- 所需权限：`storage`、`bookmarks`、`notifications`，以及 GitHub 的 host 权限
+- 平台侧要求：带 gist 权限的访问令牌、代码片段 ID、文件名（默认 `BookmarkHub`，两平台共用）
+- 所需权限：`storage`、`bookmarks`、`notifications`，以及 GitHub 与 Gitee 的 host 权限
 - 发行包不入库。`*.zip` 和 `releases/` 已加入 `.gitignore`，产物挂在 GitHub Release 上
 - `wxt.config.ts` 的 `zip.excludeSources` 用于给 Firefox 审核的源码包减重 —— 默认会把仓库里的发行包一起打进去，导致逐版本复利累积

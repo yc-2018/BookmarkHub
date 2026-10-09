@@ -13,7 +13,7 @@ import { BookmarkInfo } from '../../utils/models'
 import { getBookmarkCount } from '../../utils/bookmarks'
 import { DiffResult } from '../../utils/diff'
 import { OperName, sendOper } from '../../utils/messages'
-import { Setting } from '../../utils/setting'
+import { Setting, isConfigured, providerInfo } from '../../utils/setting'
 import { DiffPanel } from './DiffPanel'
 
 type Action = 'upload' | 'download' | 'removeAll'
@@ -39,10 +39,13 @@ const Popup: React.FC = () => {
     const [remoteCount, setRemoteCount] = useState<number | null>(null)
     // null = 还在读取配置，读完才知道该显示菜单还是引导去设置
     const [configured, setConfigured] = useState<boolean | null>(null)
+    // 当前存储平台名，用于界面文案
+    const [providerName, setProviderName] = useState('GitHub')
 
     useEffect(() => {
         Setting.build().then(s => {
-            setConfigured(!!(s.githubToken && s.gistID && s.gistFileName))
+            setConfigured(isConfigured(s))
+            setProviderName(providerInfo(s).name)
         }).catch(() => setConfigured(false))
     }, [])
 
@@ -154,7 +157,7 @@ const Popup: React.FC = () => {
         body: (
             <>
                 <p className="mb-2">将删除<b>本地全部 {localCount ?? '未知'} 个</b>书签，此操作不可撤销。</p>
-                <p className="mb-0 text-muted small">远端 Gist 不受影响，可随后用「下载书签」恢复。</p>
+                <p className="mb-0 text-muted small">远端数据不受影响，可随后用「下载书签」恢复。</p>
             </>
         ),
     })
@@ -186,7 +189,7 @@ const Popup: React.FC = () => {
                         <div className="setup-guide">
                             <div className="setup-guide-title">尚未完成配置</div>
                             <div className="setup-guide-text">
-                                同步书签需要先填写 GitHub Token 与 Gist ID，配置完成后即可使用上传、下载和对比。
+                                同步书签需要先填写 {providerName} 的访问令牌与代码片段 ID，配置完成后即可使用上传、下载和对比。
                             </div>
                             <Button size="sm" variant="primary" block onClick={openSettings}>
                                 <AiOutlineSetting />前往设置

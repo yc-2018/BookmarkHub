@@ -27,6 +27,20 @@
     margin-bottom: 1rem;
 }
 
+.options-section {
+    font-size: 11px;
+    font-weight: 600;
+    color: #495057;
+    text-transform: none;
+    margin-bottom: .75rem;
+}
+
+hr {
+    margin-top: .5rem;
+    margin-bottom: 1rem;
+    border-top-color: #f1f3f5;
+}
+
 .form-text {
     font-size: 11px;
     margin-top: .25rem;
