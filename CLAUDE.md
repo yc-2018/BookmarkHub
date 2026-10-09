@@ -79,7 +79,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 所有书签写操作的唯一出口，同时是弹窗的消息中枢。
 
-- 消息分发：`upload` / `download` / `removeAll` / `compare` / `setting`
+- 消息分发：`upload` / `download` / `removeAll` / `compare`（设置已并入弹窗标签页，不再有 `setting` 消息）
 - 对外操作：`uploadBookmarks()`、`downloadBookmarks(remoteBookmarks?)`、`removeAllBookmarks()`、`compareBookmarks()`
 - 内部实现：`clearBookmarkTree()`、`createBookmarkTree()`、`getBookmarks()`、`refreshLocalCount()`
 - 监听书签变动，在非同步期间点亮「有未同步改动」角标
