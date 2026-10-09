@@ -114,6 +114,14 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 - **`RootBookmarksType` 的枚举值是已存 Gist 的在线格式，改了会破坏兼容性，只能在展示层映射成中文**
 - Firefox 构建为 MV2，`browser.action` 不存在（MV2 是 `browser_action`）。后台用 `browser.action ?? browser.browserAction` 回退，新增角标相关代码必须沿用
 
+### 扩展 ID 与 manifest 的 `key` 字段
+
+`wxt.config.ts` 里的 `EXTENSION_KEY` 是一把 RSA 公钥（base64 的 SPKI DER），Chrome/Edge 构建的 manifest 带 `key` 字段，Firefox 构建不带 —— manifest 用函数形式按 `env.browser` 区分，Firefox 用的是 `browser_specific_settings.gecko.id`，这个字段对它没有意义。**这个值一旦发布就不能改**：扩展 ID = SHA-256(DER 公钥) 前 16 字节、十六进制按 0-f → a-p 映射，固定为 `cagopejcnnfcecidchgcgobaaiikgkgb`；改了等于换 ID，而 `storage` 按 ID 隔离，所有用户的令牌和片段 ID 都要重填。私钥在 `.keys/bookmarkhub.pem`（已 gitignore），只有将来要打 crx 才用得到，丢了不影响现有用户。
+
+为什么必须有它（2026-10-09 在本机 Chrome 155 上实测，不是推断）：Chromium 把拖进 `chrome://extensions` 的 zip 当作「已解压扩展」安装，解压到 `<profile>/UnpackedExtensions/<包名>_<进程号>_<随机数>/`；没有 `key` 的已解压扩展，ID 来自**解压目录绝对路径**的哈希（`crx_file::id_util::GenerateIdForPath`，Windows 下取路径的 UTF-16LE 字节）。目录名每次都不同 → ID 每次都不同 → 每拖一次就多一条「新扩展」，而且新的那条 storage 是空的、永远停在未配置状态。用户 Chrome 里残留的 `UnpackedExtensions\bookmarkhub-1.0.2-chrome_28692_553569640` 目录和 ID `haedikijkpbmanjmahmpoleebeijcphi` 就是这么来的，按上述算法从该路径算出的 ID 与之完全一致。有了 `key`，ID 与路径无关，再装就是原地覆盖。
+
+验证办法（不用碰 UI）：用 `--remote-debugging-pipe --enable-unsafe-extension-debugging --user-data-dir=<临时目录>` 启动 Chrome，通过 CDP 的 `Extensions.loadUnpacked` 从两个不同目录各装一次 —— 这走的就是拖 zip 时用的 UnpackedInstaller，只少了解压那一步。两次返回的 ID 都应是上面那个值，`Browser.close` 正常关闭后 `Default/Secure Preferences` 的 `extensions.settings` 里只剩一条、`path` 指向第二个目录。要用 `Browser.close` 而不是直接杀进程，否则 prefs 可能来不及落盘。
+
 ### 消息机制
 
 `wxt.config.ts` 设了 `extensionApi: 'chrome'`，**没有 webextension-polyfill**。因此 `onMessage` 监听器**不能返回 Promise**，必须 `sendResponse` + `return true`。所有操作统一返回 `OperResult`（`{ ok, error?, ... }`），失败信息要能在弹窗里显示出来，不能只靠系统通知 —— 用户可能关掉了通知。
@@ -177,7 +185,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 - 平台选择是**原生单选框**外面套卡片样式：`input[type=radio]` 透明隐藏但留在表单里，`syncForm` 才读得到（序列化库对 radio 的处理是 `KeyAssignmentValidators` 只接受 `checked` 的那个、读取走默认的 `el.value`）
 - 破坏性操作（上传、下载、清空）必须先弹确认框并写明后果，执行期间要有加载动画。清空书签作为弱化的次要入口，不与上传下载同级
 - 未完成配置时隐藏上传/下载/对比，只显示引导去「设置」标签页 —— 这些操作没有令牌和片段 ID 必然失败。**首次读取发现未配置会直接把初始标签页设为「设置」**，省掉一次点击；只在首次生效，用户之后手动切回「同步」或正在输入时不会被拽走
-- 改完界面要实机验证渲染，类型检查和构建发现不了布局问题。本机没有 Chrome，用 Edge 加独立临时配置通过 CDP 加载 `.output/chrome-mv3` 截图
+- 改完界面要实机验证渲染，类型检查和构建发现不了布局问题。本机装有 Chrome 155 和 Edge，用独立的临时 `--user-data-dir` 通过 CDP 加载 `.output/chrome-mv3` 截图，不要碰用户自己的 profile（`browser-cdp` 技能的启动脚本会杀掉用户正在运行的 Chrome 并复制其真实 profile，不要用）
 - **CDP 模拟事件必须贴近真实**：按 `input` → `change` 顺序派发；且 React 对单选框/复选框的 `onChange` 实际绑定在 `click` 上，只派发 `change` 不会触发它。验证交互优先用 `Input.dispatchMouseEvent` 真实点击。多个同类元素（比如两个平台各有一个指引入口）要用「取可见的那个」而非 `querySelector`
 
 ## 其他注意事项

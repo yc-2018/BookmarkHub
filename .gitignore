@@ -14,9 +14,16 @@ stats-*.json
 .wxt
 web-ext.config.ts
 
+# CodeGraph 的本地索引
+.codegraph/
+
 # 发行包由 CI 构建并挂到 GitHub Release，不入库
 *.zip
 releases/
+
+# 扩展签名私钥（.keys/bookmarkhub.pem）。公钥已固化在 wxt.config.ts 的 key 字段里，
+# 私钥只在将来需要打 crx 时用得到，不公开。
+.keys/
 
 # Editor directories and files
 .vscode/*

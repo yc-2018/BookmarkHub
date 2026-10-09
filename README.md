@@ -49,7 +49,9 @@ Packages are on [GitHub Releases](https://github.com/yc-2018/BookmarkHub/release
 | `bookmarkhub-<version>-firefox.zip` | Firefox |
 | `bookmarkhub-<version>-sources.zip` | Source archive for Firefox review only |
 
-**Chrome / Edge**: unzip → open `chrome://extensions` (`edge://extensions`) → enable *Developer mode* → *Load unpacked* → pick the unzipped folder.
+**Chrome / Edge**: open `chrome://extensions` (`edge://extensions`) → enable *Developer mode* → drag the chrome zip onto the page, or unzip it and use *Load unpacked*. Installing a newer version the same way updates the extension in place and keeps your settings.
+
+> Upgrading from 1.3.3 or earlier: those builds had no fixed extension ID, so every install showed up as a new extension. Remove the old entry first, install the new build, and enter your token and snippet ID once more. Later upgrades will not need this.
 
 **Firefox**: open `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → pick the firefox zip. Temporary add-ons are removed when Firefox restarts.
 
