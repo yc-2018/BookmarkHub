@@ -41,7 +41,7 @@ export interface OrderChangedEntry {
 }
 
 export interface DiffResult {
-    /** 两棵树序列化后完全一致 —— 也就是同步属于空操作 */
+    /** 两棵树的同步内容（标题 / URL / 子节点）完全一致 —— 也就是同步属于空操作 */
     identical: boolean
     localCount: number
     remoteCount: number
@@ -58,7 +58,7 @@ export interface DiffResult {
     folderLocalOnly: FlatEntry[]
     folderRemoteOnly: FlatEntry[]
     /**
-     * 序列化结果不一致，但上面所有分类都是空的。
+     * 同步内容不一致，但上面所有分类都是空的。
      * 说明存在对比逻辑没覆盖到的差异，不能对用户谎称「一致」。
      */
     unexplainedDifference: boolean
@@ -209,6 +209,25 @@ function diffOrder(
     return changed
 }
 
+/**
+ * 把一棵树收敛成「同步内容」：只保留 title / url / children，同级顺序不变。
+ * 远端是历史版本写下的原文，可能残留浏览器私有字段（syncing、folderType 等），
+ * 空文件夹的 children 也可能写成 [] 或整个缺席 —— 这些都是同一棵树的不同写法，
+ * 抹平后比较才不会得出「有差异但一类都归不出」的假提示。
+ */
+function canonicalize(nodes: BookmarkInfo[] | undefined): unknown[] {
+    return (nodes ?? []).map(n => {
+        const out: { title: string; url?: string; children?: unknown[] } = { title: n.title ?? '' }
+        if (n.url) {
+            out.url = n.url
+        }
+        if (n.children && n.children.length > 0) {
+            out.children = canonicalize(n.children)
+        }
+        return out
+    })
+}
+
 /** 比对本地与远端两棵归一化书签树 */
 export function diffBookmarks(
     localNodes: BookmarkInfo[] | undefined,
@@ -243,9 +262,10 @@ export function diffBookmarks(
     const folderSurplus = surplus(local.folders, remote.folders, e => e.path + SEP + e.title)
     const orderChanged = diffOrder(collectOrder(localNodes), collectOrder(remoteNodes))
 
-    // 同步是整树覆盖，所以「是否需要同步」的唯一真实判据是序列化结果是否相等，
-    // 而不是上面那些分类是否为空。
-    const identical = JSON.stringify(localNodes ?? null) === JSON.stringify(remoteNodes ?? null)
+    // 同步是整树覆盖，所以「是否需要同步」的真实判据是两棵树的同步内容是否相等，
+    // 而不是上面那些分类是否为空。浏览器私有字段不参与比较 ——
+    // 下载时它们由浏览器自己生成、无法按远端还原，拿它们当判据会永远报「有差异」。
+    const identical = JSON.stringify(canonicalize(localNodes)) === JSON.stringify(canonicalize(remoteNodes))
 
     const classified =
         localOnly.length + remoteOnly.length + moved.length + titleChanged.length +

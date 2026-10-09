@@ -86,15 +86,15 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 ### 同步流程
 
-1. **上传**：读本地树 → 归一化根目录名并剥除浏览器私有字段 → 包成 `SyncDataInfo` → PATCH 到 Gist
-2. **下载**：拉 Gist → 清空本地树 → 按当前浏览器的 ID 规则重建
+1. **上传**：读本地树 → 归一化根目录名并剥除浏览器私有字段（白名单只留 `title`/`url`/`children`）→ 包成 `SyncDataInfo` → PATCH 到 Gist
+2. **下载**：拉 Gist → 先用 `findUnplaceableRoots()` 检查远端根分类在当前浏览器都有落点（缺「移动设备书签」这类根目录时直接报错取消，此时本地还没被清空）→ 清空本地树 → 按当前浏览器的 ID 规则重建
 3. **对比**：拉 Gist → 与本地归一化树比对 → 返回 `DiffResult`，**同时回传远端树**，供用户随后选择「下载覆盖本地」时复用，避免二次请求
 
 ### 工具层（`src/utils/`）
 
 | 文件 | 职责 |
 |---|---|
-| `bookmarks.ts` | 书签树处理：`formatBookmarks`（归一化，**深拷贝不改入参**）、`getBookmarkCount`、`detectBrowserType`、根目录中文展示名映射 |
+| `bookmarks.ts` | 书签树处理：`formatBookmarks`（归一化，**深拷贝不改入参**，节点按 `SYNC_FIELDS` 白名单只留 `title`/`url`/`children`）、`getBookmarkCount`、`detectBrowserType`、根目录中文展示名映射 |
 | `diff.ts` | 本地与远端比对：`flattenBookmarks`、`diffBookmarks`、`DiffResult` |
 | `messages.ts` | 弹窗与后台之间的消息类型 `OperMessage` / `OperResult`，以及 `sendOper()` |
 | `services.ts` | `BookmarkService`，封装代码片段的读写；Gitee 分支负责 emoji 转义与 JSON 请求体 |
@@ -112,6 +112,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 - Firefox 根节点 ID 为 `"root________"`，Chrome 为数字 `"0"`/`"1"`/`"2"`/`"3"`
 - 归一化时统一换成 `RootBookmarksType` 的标识名（`ToolbarFolder` 等），下载时再按目标浏览器映射回去
+- **Chrome/Edge 未必有「移动设备书签」根目录（id `"3"`）**：实测 Chrome 155 与 Edge 154 的全新 profile 根目录只有 `"1"`/`"2"`，往 `"3"` 里 `create` 会报 `Can't find parent bookmark for id.`，整棵子树只能被丢掉。所以下载前先跑 `findUnplaceableRoots()`：远端某分类有内容而本地没有对应根目录时直接报错取消（本地尚未清空），不静默丢数据
 - **`RootBookmarksType` 的枚举值是已存 Gist 的在线格式，改了会破坏兼容性，只能在展示层映射成中文**
 - Firefox 构建为 MV2，`browser.action` 不存在（MV2 是 `browser_action`）。后台用 `browser.action ?? browser.browserAction` 回退，新增角标相关代码必须沿用
 
@@ -125,7 +126,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 ### 消息机制
 
-`wxt.config.ts` 设了 `extensionApi: 'chrome'`，**没有 webextension-polyfill**。因此 `onMessage` 监听器**不能返回 Promise**，必须 `sendResponse` + `return true`。所有操作统一返回 `OperResult`（`{ ok, error?, ... }`），失败信息要能在弹窗里显示出来，不能只靠系统通知 —— 用户可能关掉了通知。
+`wxt.config.ts` 设了 `extensionApi: 'chrome'`，**没有 webextension-polyfill**。因此 `onMessage` 监听器**不能返回 Promise**，必须 `sendResponse` + `return true`。所有操作统一返回 `OperResult`（`{ ok, error?, ... }`），失败信息要能在弹窗里显示出来，不能只靠系统通知 —— 用户可能关掉了通知。`notify()` 必须自己兜住异常：它在各操作的 catch 块里被 await，一旦自己抛出，弹窗里显示的就是它的错误而不是真正的原因。2026-10-10 实测：`notifications.create` 通过 worker 的 `fetch` 加载图标（data: URL 也一样），fetch 被 stub 掉时全部抛 "Unable to download all specified images." —— 用 CDP 验证时 stub 了 fetch 就会撞上，正常运行时图标加载没有问题。
 
 ### 存储平台（GitHub / Gitee）
 
@@ -152,9 +153,11 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 ### 对比逻辑
 
-`DiffResult.identical` 取自**两棵树序列化后是否相等**，而不是「各分类是否为空」。因为同步是整树覆盖，序列化相等才真正等价于「同步是空操作」。
+`DiffResult.identical` 取自**两棵树的同步内容（`canonicalize`：只留 `title`/`url`/`children`，同级顺序不变，空 `children` 与缺席等价）是否相等**，而不是「各分类是否为空」。因为同步是整树覆盖，同步内容相等才真正等价于「同步是空操作」。
 
-拍平成 `{路径, 标题, URL}` 会丢掉同级顺序，所以同一文件夹内拖动排序必须靠 `orderChanged` 分类单独识别（按文件夹报而非按条目报，避免插入一项就把后面全标成变化）。若序列化不相等但各分类都为空，置 `unexplainedDifference`，界面上明说存在无法归类的差异 —— 不能对用户谎称一致。
+**不能直接拿 `JSON.stringify` 原始对象比。** 浏览器私有字段（Chrome/Edge 每个节点上的 `syncing`、根目录上的 `folderType`）由浏览器自己生成、下载时无法按远端还原，历史 Gist 里还残留旧版本写下的这些字段 —— 直接比较会得出「有差异但一类都归不出」的假提示，而且永远修不好：覆盖本地改不了它们，上传把远端改成与本地一致后，本地字段再变一次（换浏览器、开关同步、浏览器升级）又会复发。2026-10-10 实测复现：把远端里这两个键删掉再走「清空 → 建树 → 对比」，`identical=false`、`classified=0`，第一处差异正是本地多出的 `"syncing":false`。
+
+拍平成 `{路径, 标题, URL}` 会丢掉同级顺序，所以同一文件夹内拖动排序必须靠 `orderChanged` 分类单独识别（按文件夹报而非按条目报，避免插入一项就把后面全标成变化）。若同步内容不相等但各分类都为空，置 `unexplainedDifference`，界面上明说存在无法归类的差异 —— 不能对用户谎称一致。
 
 ### 状态管理
 
@@ -192,7 +195,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 ## 其他注意事项
 
-- 上传前会剥掉所有浏览器私有字段（`dateAdded`、`id`、`index`、`parentId` 等）
+- 上传前会剥掉所有浏览器私有字段：`stripMetadata` 用白名单（`SYNC_FIELDS = title/url/children`）而非逐个列举 —— Chrome 155 会给节点挂 `syncing`、给根目录挂 `folderType`，列举法漏掉它们就等于把私有字段写进了 Gist
 - 平台侧要求：带 gist 权限的访问令牌、代码片段 ID、文件名（默认 `BookmarkHub`，两平台共用）
 - 所需权限：`storage`、`bookmarks`、`notifications`，以及 GitHub 与 Gitee 的 host 权限
 - 发行包不入库。`*.zip` 和 `releases/` 已加入 `.gitignore`，产物挂在 GitHub Release 上

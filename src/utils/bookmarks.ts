@@ -39,7 +39,7 @@ export function detectBrowserType(bookmarkTree: BookmarkInfo[]): BrowserType {
 
 /**
  * 把本地书签树归一化成可上传 / 可比对的格式：
- * 根目录文件夹改成统一标识名，并剥掉所有浏览器私有字段。
+ * 根目录文件夹改成统一标识名，节点只留下同步真正承载的字段。
  * 不修改入参（内部先深拷贝）。
  */
 export function formatBookmarks(bookmarks: BookmarkInfo[]): BookmarkInfo[] | undefined {
@@ -68,14 +68,20 @@ export function formatBookmarks(bookmarks: BookmarkInfo[]): BookmarkInfo[] | und
     return stripMetadata(root).children
 }
 
+/**
+ * 同步格式只承载这三个字段，其余全是浏览器私有信息，写进 gist 会让
+ * 「同一份书签」在不同浏览器/版本下序列化结果不同，对比时变成无法归类的假差异。
+ * 用白名单而不是逐个列举黑名单：Chrome 155 会额外挂上 syncing、folderType，
+ * 将来还可能再加字段，列举法必然漏。
+ */
+const SYNC_FIELDS = ['title', 'url', 'children']
+
 function stripMetadata(b: BookmarkInfo): BookmarkInfo {
-    b.dateAdded = undefined
-    b.dateGroupModified = undefined
-    b.id = undefined
-    b.index = undefined
-    b.parentId = undefined
-    b.type = undefined
-    b.unmodifiable = undefined
+    for (const key of Object.keys(b)) {
+        if (!SYNC_FIELDS.includes(key)) {
+            delete (b as any)[key]
+        }
+    }
     if (b.children && b.children.length > 0) {
         b.children.forEach(c => stripMetadata(c))
     }

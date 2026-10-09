@@ -3,7 +3,7 @@ import { HTTPError } from 'ky'
 import { Setting, activeCredentials, providerInfo, isValidToken, isValidSnippetId } from '../utils/setting'
 import iconLogo from '../assets/icon.png'
 import { OperType, BookmarkInfo, SyncDataInfo, RootBookmarksType, BrowserType } from '../utils/models'
-import { detectBrowserType, formatBookmarks, getBookmarkCount } from '../utils/bookmarks'
+import { detectBrowserType, displayFolderName, formatBookmarks, getBookmarkCount } from '../utils/bookmarks'
 import { diffBookmarks } from '../utils/diff'
 import { OperResult } from '../utils/messages'
 import { Bookmarks } from 'wxt/browser'
@@ -132,17 +132,26 @@ export default defineBackground(() => {
     return setting
   }
 
+  /**
+   * 系统通知只是附加提示，必须自己兜住异常：它在各操作的 catch 块里被 await，
+   * 一旦自己抛出就会顶替掉真正的错误原因（实测：notifications.create 通过 worker 的 fetch
+   * 加载图标，fetch 不可用时抛 "Unable to download all specified images."）。
+   */
   async function notify(title: string, message: string) {
-    const setting = await Setting.build()
-    if (!setting.enableNotify) {
-      return
+    try {
+      const setting = await Setting.build()
+      if (!setting.enableNotify) {
+        return
+      }
+      await browser.notifications.create({
+        type: "basic",
+        iconUrl: iconLogo,
+        title,
+        message
+      })
+    } catch (e) {
+      console.warn('发送系统通知失败', e)
     }
-    await browser.notifications.create({
-      type: "basic",
-      iconUrl: iconLogo,
-      title,
-      message
-    })
   }
 
   async function uploadBookmarks(): Promise<OperResult> {
@@ -194,7 +203,14 @@ export default defineBackground(() => {
         bookmarks = syncdata.bookmarks
       }
 
-      await getBookmarks()   // 刷新 curBrowserType，建树时需要
+      const localTree = await getBookmarks()   // 刷新 curBrowserType，建树时需要
+      // 建树只能把书签放进浏览器已有的根目录。Chrome/Edge 未必有「移动设备书签」（id "3"），
+      // 缺了它 create 会失败、整棵子树被丢掉，而本地这时已经被清空 —— 所以先拦下来再动手。
+      const lost = findUnplaceableRoots(bookmarks, new Set((localTree[0]?.children ?? []).map(c => c.id)))
+      if (lost.length > 0) {
+        const detail = lost.map(l => `${l.name}（${l.count} 条）`).join('、')
+        throw new Error(`当前浏览器缺少这些根目录：${detail}，继续下载会丢掉它们，已取消。可以改用「上传」以本地覆盖远端`)
+      }
       await clearBookmarkTree()
       await createBookmarkTree(bookmarks)
       const count = getBookmarkCount(bookmarks)
@@ -269,51 +285,55 @@ export default defineBackground(() => {
     }
   }
 
+  /**
+   * 远端根分类名 → 当前浏览器对应的根目录 id。
+   * 菜单与「其他」在 Chrome 系下合并到 "2"；返回 undefined 表示不是根分类。
+   */
+  function rootParentId(title: string): string | undefined {
+    if (curBrowserType == BrowserType.FIREFOX) {
+      switch (title) {
+        case RootBookmarksType.MenuFolder: return "menu________"
+        case RootBookmarksType.MobileFolder: return "mobile______"
+        case RootBookmarksType.ToolbarFolder: return "toolbar_____"
+        case RootBookmarksType.UnfiledFolder: return "unfiled_____"
+      }
+      return undefined
+    }
+    switch (title) {
+      case RootBookmarksType.MobileFolder: return "3"
+      case RootBookmarksType.ToolbarFolder: return "1"
+      case RootBookmarksType.UnfiledFolder:
+      case RootBookmarksType.MenuFolder: return "2"
+    }
+    return undefined
+  }
+
+  /**
+   * 远端里有内容、但当前浏览器没有对应根目录的分类。
+   * 这些子树下载时无处安放（create 报 "Can't find parent bookmark for id." 后只能丢弃），
+   * 空分类不算数 —— 没有内容就没有损失。
+   */
+  function findUnplaceableRoots(remoteRoots: BookmarkInfo[] | undefined, localRootIds: Set<string | undefined>): { name: string, count: number }[] {
+    const lost: { name: string, count: number }[] = []
+    for (const node of remoteRoots ?? []) {
+      const parentId = rootParentId(node.title)
+      const count = getBookmarkCount(node.children)
+      if (parentId && !localRootIds.has(parentId) && count > 0) {
+        lost.push({ name: displayFolderName(node.title), count })
+      }
+    }
+    return lost
+  }
+
   async function createBookmarkTree(bookmarkList: BookmarkInfo[] | undefined) {
     if (bookmarkList == null) {
       return
     }
     for (let i = 0; i < bookmarkList.length; i++) {
       let node = bookmarkList[i]
-      if (node.title == RootBookmarksType.MenuFolder
-        || node.title == RootBookmarksType.MobileFolder
-        || node.title == RootBookmarksType.ToolbarFolder
-        || node.title == RootBookmarksType.UnfiledFolder) {
-        if (curBrowserType == BrowserType.FIREFOX) {
-          switch (node.title) {
-            case RootBookmarksType.MenuFolder:
-              node.children?.forEach(c => c.parentId = "menu________");
-              break;
-            case RootBookmarksType.MobileFolder:
-              node.children?.forEach(c => c.parentId = "mobile______");
-              break;
-            case RootBookmarksType.ToolbarFolder:
-              node.children?.forEach(c => c.parentId = "toolbar_____");
-              break;
-            case RootBookmarksType.UnfiledFolder:
-              node.children?.forEach(c => c.parentId = "unfiled_____");
-              break;
-            default:
-              node.children?.forEach(c => c.parentId = "unfiled_____");
-              break;
-          }
-        } else {
-          switch (node.title) {
-            case RootBookmarksType.MobileFolder:
-              node.children?.forEach(c => c.parentId = "3");
-              break;
-            case RootBookmarksType.ToolbarFolder:
-              node.children?.forEach(c => c.parentId = "1");
-              break;
-            case RootBookmarksType.UnfiledFolder:
-            case RootBookmarksType.MenuFolder:
-              node.children?.forEach(c => c.parentId = "2");
-              break;
-            default:
-              node.children?.forEach(c => c.parentId = "2");
-              break;
-          }
-        }
+      const rootId = rootParentId(node.title)
+      if (rootId) {
+        node.children?.forEach(c => c.parentId = rootId);
         await createBookmarkTree(node.children);
         continue;
       }
