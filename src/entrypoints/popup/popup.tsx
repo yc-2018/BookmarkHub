@@ -17,9 +17,13 @@ import { OperName, sendOper } from '../../utils/messages'
 import { Setting, isConfigured, providerId, providerInfo } from '../../utils/setting'
 import { DiffPanel } from './DiffPanel'
 import { SettingsForm } from '../../components/SettingsForm'
+import { checkForUpdate } from '../../utils/update'
 
 type Action = 'upload' | 'download' | 'removeAll'
 type Tab = 'sync' | 'settings'
+
+/** 当前安装版本；manifest 的 version 由 package.json 生成 */
+const VERSION = browser.runtime.getManifest().version
 
 interface ConfirmSpec {
     action: Action
@@ -36,7 +40,8 @@ const Popup: React.FC = () => {
     const [comparing, setComparing] = useState(false)
     const [busy, setBusy] = useState<OperName | null>(null)
     const [confirm, setConfirm] = useState<ConfirmSpec | null>(null)
-    const [alertMsg, setAlertMsg] = useState<{ ok: boolean; text: string } | null>(null)
+    const [alertMsg, setAlertMsg] = useState<{ ok: boolean; text: string; link?: { href: string; label: string } } | null>(null)
+    const [checkingUpdate, setCheckingUpdate] = useState(false)
     const [diff, setDiff] = useState<DiffResult | null>(null)
     const [remoteBookmarks, setRemoteBookmarks] = useState<BookmarkInfo[] | undefined>(undefined)
     const [localCount, setLocalCount] = useState<number | null>(null)
@@ -113,6 +118,22 @@ const Popup: React.FC = () => {
             setComparing(true)
         } else {
             setAlertMsg({ ok: false, text: res.error ?? '对比失败' })
+        }
+    }
+
+    // 手动检查更新：结果复用顶部提示条，有新版时附上发行页链接
+    const runUpdateCheck = async () => {
+        setAlertMsg(null)
+        setCheckingUpdate(true)
+        try {
+            const r = await checkForUpdate()
+            setAlertMsg(r.hasUpdate
+                ? { ok: true, text: `发现新版本 v${r.latest}（当前 v${r.current}），`, link: { href: r.releaseUrl, label: '去更新 →' } }
+                : { ok: true, text: `已是最新版本 v${r.current}` })
+        } catch (e) {
+            setAlertMsg({ ok: false, text: '检查更新失败：' + (e instanceof Error ? e.message : String(e)) })
+        } finally {
+            setCheckingUpdate(false)
         }
     }
 
@@ -241,6 +262,11 @@ const Popup: React.FC = () => {
                     onClose={() => setAlertMsg(null)}
                 >
                     {alertMsg.text}
+                    {alertMsg.link && (
+                        <a className="alert-link" href={alertMsg.link.href} target="_blank" rel="noreferrer">
+                            {alertMsg.link.label}
+                        </a>
+                    )}
                 </Alert>
             )}
 
@@ -302,7 +328,13 @@ const Popup: React.FC = () => {
             </div>
 
             <div className="bh-foot">
-                <a href="https://github.com/yc-2018/BookmarkHub" target="_blank" rel="noreferrer">使用帮助</a>
+                <span className="bh-foot-links">
+                    <a href="https://github.com/yc-2018/BookmarkHub" target="_blank" rel="noreferrer">使用帮助</a>
+                    <button type="button" className="foot-link" disabled={checkingUpdate} onClick={runUpdateCheck}
+                        title={'当前版本 v' + VERSION + '，点击到 GitHub Releases 查询是否有新版本'}>
+                        {checkingUpdate ? '检查中…' : '检查更新'}
+                    </button>
+                </span>
                 <a href="https://github.com/yc-2018" target="_blank" rel="noreferrer" title="开发者">
                     <AiOutlineGithub />yc-2018
                 </a>

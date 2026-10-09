@@ -102,6 +102,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 | `setting.ts` | `Setting.build()` 读取配置 |
 | `optionsStorage.ts` | webext-options-sync 的默认值定义 |
 | `models.ts` | `BookmarkInfo`、`SyncDataInfo` 及各枚举 |
+| `update.ts` | 检查更新：`compareVersions`（按点分段数值比较）、`checkForUpdate`（拉 GitHub `releases/latest` 与 `manifest.version` 比对） |
 
 弹窗与后台共用 `bookmarks.ts` / `diff.ts`，所以这些函数**不能依赖后台特有的运行环境**。
 
@@ -187,6 +188,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 - 未完成配置时隐藏上传/下载/对比，只显示引导去「设置」标签页 —— 这些操作没有令牌和片段 ID 必然失败。**首次读取发现未配置会直接把初始标签页设为「设置」**，省掉一次点击；只在首次生效，用户之后手动切回「同步」或正在输入时不会被拽走
 - 改完界面要实机验证渲染，类型检查和构建发现不了布局问题。本机装有 Chrome 155 和 Edge，用独立的临时 `--user-data-dir` 通过 CDP 加载 `.output/chrome-mv3` 截图，不要碰用户自己的 profile（`browser-cdp` 技能的启动脚本会杀掉用户正在运行的 Chrome 并复制其真实 profile，不要用）
 - **CDP 模拟事件必须贴近真实**：按 `input` → `change` 顺序派发；且 React 对单选框/复选框的 `onChange` 实际绑定在 `click` 上，只派发 `change` 不会触发它。验证交互优先用 `Input.dispatchMouseEvent` 真实点击。多个同类元素（比如两个平台各有一个指引入口）要用「取可见的那个」而非 `querySelector`
+- 弹窗页脚有「检查更新」，**纯手动点击**：拉 `api.github.com/repos/yc-2018/BookmarkHub/releases/latest`（现有 `*.github.com` host 权限已覆盖 api 子域，不用加权限；匿名每小时 60 次，手动点足够），与 `browser.runtime.getManifest().version` 比对，结果复用顶部提示条，有新版时附「去更新」链接到该版本的发行页。扩展是 zip + 加载已解压分发，浏览器不会替它自动更新，所以只能提示用户去下载覆盖安装；不要改成后台定时检查，理由同自动同步。页脚是同步/设置两个标签页共用的，放这里不会撑高 586px 的设置页
 
 ## 其他注意事项
 

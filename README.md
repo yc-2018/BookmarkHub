@@ -49,7 +49,7 @@ Packages are on [GitHub Releases](https://github.com/yc-2018/BookmarkHub/release
 | `bookmarkhub-<version>-firefox.zip` | Firefox |
 | `bookmarkhub-<version>-sources.zip` | Source archive for Firefox review only |
 
-**Chrome / Edge**: open `chrome://extensions` (`edge://extensions`) → enable *Developer mode* → drag the chrome zip onto the page, or unzip it and use *Load unpacked*. Installing a newer version the same way updates the extension in place and keeps your settings.
+**Chrome / Edge**: open `chrome://extensions` (`edge://extensions`) → enable *Developer mode* → drag the chrome zip onto the page, or unzip it and use *Load unpacked*. Installing a newer version the same way updates the extension in place and keeps your settings. The popup footer has a *检查更新* (check for updates) link that compares the installed version with the latest release and links to it when a newer one exists.
 
 > Upgrading from 1.3.3 or earlier: those builds had no fixed extension ID, so every install showed up as a new extension. Remove the old entry first, install the new build, and enter your token and snippet ID once more. Later upgrades will not need this.
 

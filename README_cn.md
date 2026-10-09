@@ -47,7 +47,7 @@
 | `bookmarkhub-<版本>-firefox.zip` | Firefox |
 | `bookmarkhub-<版本>-sources.zip` | 源码包，仅供 Firefox 审核用，普通用户不用下 |
 
-**Chrome / Edge**：打开 `chrome://extensions`（Edge 是 `edge://extensions`）→ 右上角打开「开发者模式」→ 把 chrome 包的 zip 直接拖进这个页面；或者解压后点「加载已解压的扩展程序」选中目录。升级时用同样方式再装一次即可，会原地覆盖旧版，配置不会丢。
+**Chrome / Edge**：打开 `chrome://extensions`（Edge 是 `edge://extensions`）→ 右上角打开「开发者模式」→ 把 chrome 包的 zip 直接拖进这个页面；或者解压后点「加载已解压的扩展程序」选中目录。升级时用同样方式再装一次即可，会原地覆盖旧版，配置不会丢。弹窗页脚的「检查更新」会把当前版本与最新发行版比对，有新版时直接给出下载页链接。
 
 > 从 1.3.3 及更早版本升级：旧版没有固定扩展 ID，每次安装都会被浏览器当成一个新扩展。请先删掉扩展列表里旧的那条，再安装新版，并重新填一次令牌和片段 ID。此后升级不再需要这一步。
 
