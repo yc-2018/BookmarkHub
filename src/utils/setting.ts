@@ -92,15 +92,37 @@ export function providerInfo(setting: SettingBase) {
     return PROVIDERS[providerId(setting)]
 }
 
-/** 取出当前所选平台对应的那组凭据 */
+/**
+ * 取出当前所选平台对应的那组凭据。
+ * 统一去掉首尾空白：从地址栏复制片段 ID 常带换行或空格，不处理的话
+ * "  " 会被当成已填写、API 请求也会因 ID 不匹配而 404。
+ */
 export function activeCredentials(setting: SettingBase): { token: string; gistID: string } {
-    return providerId(setting) === 'gitee'
+    const raw = providerId(setting) === 'gitee'
         ? { token: setting.giteeToken, gistID: setting.giteeGistID }
         : { token: setting.githubToken, gistID: setting.gistID }
+    return { token: String(raw.token ?? '').trim(), gistID: String(raw.gistID ?? '').trim() }
 }
 
-/** 当前所选平台是否已配置齐全 */
+/**
+ * 凭据格式。ID 两个平台都只含字母数字（GitHub 是 32 位十六进制，Gitee 是小写字母数字）；
+ * 令牌要放行下划线和连字符 —— GitHub 的 ghp_ / github_pat_ 前缀就含下划线，
+ * 写成纯字母数字会把所有合法 GitHub 令牌挡在外面。
+ * 这两条同时用在输入框的 pattern 属性、isConfigured 和后台的 requireGistConfig。
+ *
+ * 连字符必须写成 \- ：浏览器把 pattern 属性按正则 v 标志编译，v 模式下字符类里裸写的 -
+ * 是语法错误，而编译失败的 pattern 会被浏览器静默忽略（字段永远合法），不会有任何报错。
+ */
+export const TOKEN_PATTERN = '[A-Za-z0-9_\\-]+'
+export const SNIPPET_ID_PATTERN = '[A-Za-z0-9]+'
+const TOKEN_RE = new RegExp('^' + TOKEN_PATTERN + '$')
+const SNIPPET_ID_RE = new RegExp('^' + SNIPPET_ID_PATTERN + '$')
+
+export const isValidToken = (s: string) => TOKEN_RE.test(s)
+export const isValidSnippetId = (s: string) => SNIPPET_ID_RE.test(s)
+
+/** 当前所选平台是否已配置齐全且格式正确 */
 export function isConfigured(setting: SettingBase): boolean {
     const { token, gistID } = activeCredentials(setting)
-    return !!(token && gistID && setting.gistFileName)
+    return isValidToken(token) && isValidSnippetId(gistID) && !!setting.gistFileName
 }

@@ -220,7 +220,7 @@ const Popup: React.FC = () => {
     return (
         <IconContext.Provider value={{ className: 'bh-icon' }}>
             <div className="bh-head">
-                <span className="bh-brand"><AiOutlineSync />BookmarkHub</span>
+                <span className="bh-brand"><AiOutlineSync />Bookmarks 2 Hub</span>
                 <span className="bh-platform" title={'当前存储平台：' + platform.name}>
                     {platform.id === 'github' ? <AiOutlineGithub /> : <AiOutlineCloud />}
                     {platform.name}

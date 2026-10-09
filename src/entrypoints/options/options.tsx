@@ -10,7 +10,7 @@ import { SettingsForm } from '../../components/SettingsForm'
  */
 const Options: React.FC = () => (
     <div className="options-page">
-        <h6 className="options-title">BookmarkHub 设置</h6>
+        <h6 className="options-title">Bookmarks 2 Hub 设置</h6>
         <SettingsForm />
     </div>
 )

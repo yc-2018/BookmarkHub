@@ -1,6 +1,6 @@
 import BookmarkService from '../utils/services'
 import { HTTPError } from 'ky'
-import { Setting, activeCredentials, providerInfo } from '../utils/setting'
+import { Setting, activeCredentials, providerInfo, isValidToken, isValidSnippetId } from '../utils/setting'
 import iconLogo from '../assets/icon.png'
 import { OperType, BookmarkInfo, SyncDataInfo, RootBookmarksType, BrowserType } from '../utils/models'
 import { detectBrowserType, formatBookmarks, getBookmarkCount } from '../utils/bookmarks'
@@ -109,16 +109,22 @@ export default defineBackground(() => {
     return errorText(e)
   }
 
-  /** 校验当前所选平台的配置，缺项时抛出中文错误 */
+  /** 校验当前所选平台的配置，缺项或格式不对时抛出中文错误 */
   async function requireGistConfig() {
     const setting = await Setting.build()
     const info = providerInfo(setting)
     const { token, gistID } = activeCredentials(setting)
     if (!token) {
-      throw new Error(`未配置 ${info.name} Token`)
+      throw new Error(`未配置 ${info.name} 令牌`)
+    }
+    if (!isValidToken(token)) {
+      throw new Error(`${info.name} 令牌格式不对：只能包含字母、数字、下划线和连字符，请检查是否多复制了内容`)
     }
     if (!gistID) {
       throw new Error(`未配置 ${info.name} 代码片段 ID`)
+    }
+    if (!isValidSnippetId(gistID)) {
+      throw new Error(`${info.name} 代码片段 ID 格式不对：只能包含字母和数字。若粘贴了整个网址，请只保留最后一段`)
     }
     if (!setting.gistFileName) {
       throw new Error("未配置文件名")

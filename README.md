@@ -5,7 +5,7 @@
     <img src="images/icon128.png" alt="BookmarkHub" >
   </a>
 
-  <h1 align="center">BookmarkHub</h1>
+  <h1 align="center">Bookmarks 2 Hub</h1>
   <p align="center">
     Sync bookmarks across Chrome, Edge and Firefox. Your data lives only in your own GitHub Gist or Gitee snippet.
     <br />

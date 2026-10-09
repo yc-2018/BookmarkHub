@@ -80,6 +80,32 @@
     margin-right: .15rem;
 }
 
+/* ---- 格式校验 ----
+   输入框带 pattern，不匹配时浏览器标为 :invalid。syncForm 保存时会跳过无效字段，
+   所以不合格式的值根本不会进 storage；红框 + 下方提示告诉用户为什么没保存。
+   disabled 的字段不参与约束校验，非活动平台那组不会误标红。 */
+
+.settings .form-control:invalid {
+    border-color: #dc3545;
+}
+
+.settings .form-control:invalid:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 .2rem rgba(220, 53, 69, .2);
+}
+
+.invalid-hint {
+    display: none;
+    font-size: 10.5px;
+    color: #dc3545;
+    margin-top: .25rem;
+    line-height: 1.5;
+}
+
+.settings .form-group:has(.form-control:invalid) .invalid-hint {
+    display: block;
+}
+
 /* ---- 平台单选卡 ---- */
 
 .provider-choice {

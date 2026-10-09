@@ -5,9 +5,9 @@
     <img src="images/icon128.png" alt="BookmarkHub" >
   </a>
 
-  <h1 align="center">BookmarkHub · 书签同步</h1>
+  <h1 align="center">Bookmarks 2 Hub</h1>
   <p align="center">
-    在 Chrome、Edge、Firefox 之间同步书签。数据只存在你自己的 GitHub Gist 或 Gitee 代码片段里。
+    书签备份到 Git 仓库。在 Chrome、Edge、Firefox 之间同步书签，数据只存在你自己的 GitHub Gist 或 Gitee 代码片段里。
     <br />
     <small>基于 <a href="https://github.com/dudor/BookmarkHub">dudor/BookmarkHub</a> 二次开发</small>
     <br />

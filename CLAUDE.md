@@ -4,7 +4,9 @@
 
 ## 项目概述
 
-BookmarkHub 是一个跨浏览器扩展，以 GitHub Gist 作为存储，在 Chrome、Firefox、Edge 之间同步书签。技术栈为 WXT + React + TypeScript。
+产品名是 **Bookmarks 2 Hub**（manifest 显示名、弹窗品牌栏、设置页标题、README 标题），一个跨浏览器扩展，以 GitHub Gist 或 Gitee 代码片段作为存储，在 Chrome、Firefox、Edge 之间同步书签。技术栈为 WXT + React + TypeScript。
+
+三样东西沿用旧名 **BookmarkHub**，改名时不要动：仓库名 `yc-2018/BookmarkHub`；`package.json` 的 `name: "bookmarkhub"`（发行包文件名 `bookmarkhub-<版本>-*.zip` 和 CI 工作流的通配符由它派生）；默认文件名 `BookmarkHub`（已有用户的 Gist 里就是这个名字，改了会读不到）。
 
 同步是**纯手动**的：上传、下载、对比都由用户在弹窗里主动触发。早期版本的自动同步已移除 —— MV3 的 service worker 空闲即终止，`setInterval` 随之消失，而项目并未申请 `alarms` 权限，该机制实际不可靠。不要重新引入基于定时器的后台同步。
 
@@ -118,7 +120,11 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 ### 存储平台（GitHub / Gitee）
 
-`setting.ts` 的 `PROVIDERS` 表定义两个平台，`provider` 字段决定走哪个。两边各存一套凭据（`githubToken`/`gistID` 与 `giteeToken`/`giteeGistID`），`activeCredentials()` 取当前这套，`isConfigured()` 按当前平台判断；`gistFileName` 两平台共用。
+`setting.ts` 的 `PROVIDERS` 表定义两个平台，`provider` 字段决定走哪个。两边各存一套凭据（`githubToken`/`gistID` 与 `giteeToken`/`giteeGistID`），`activeCredentials()` 取当前这套并 **`trim()` 掉首尾空白**（用户曾在片段 ID 框里只敲了一个空格，`" "` 是真值就被判成已配置；从地址栏复制 ID 也常带换行），`isConfigured()` 按当前平台判断；`gistFileName` 两平台共用。
+
+**凭据格式校验**分三层，规则只定义一次在 `setting.ts`（`TOKEN_PATTERN` / `SNIPPET_ID_PATTERN`）：片段 ID 只许字母数字（两平台皆然）；令牌许字母、数字、下划线、连字符 —— **不能写成纯字母数字**，GitHub 的 `ghp_` / `github_pat_` 前缀含下划线，会把所有合法 GitHub 令牌挡掉。(1) 输入框原生 `pattern`：不匹配即 `:invalid`，红框 + `.invalid-hint`；`syncForm` 的 `_parseForm` 本来就跳过 `validity.valid === false` 的字段，所以坏值不会进 storage。(2) `isConfigured()` 也按格式判，老版本存下的坏值会落回引导页。(3) 后台 `requireGistConfig()` 再兜一层并给出说清原因的错误。另有一个表单级 `input` 监听在保存前 `trim()` 这四个字段的首尾空白 —— 只裁首尾不删中间，中间有空格该标红而不是悄悄拼成错值。
+
+**`pattern` 属性里的连字符必须写成 `\-`**。Chromium 112 起 `pattern` 按正则 `v` 标志编译，`v` 模式下字符类里裸写的 `-`（以及 `(` `[` `{` `/` `|` 等）是语法错误；而**编译失败的 pattern 会被浏览器静默忽略**，字段永远合法、没有任何报错。这次就是令牌模式 `[A-Za-z0-9_-]` 被整个忽略、片段 ID 的 `[A-Za-z0-9]` 正常，只有实测才看得出来。改任何 pattern 后必须用 `el.validity.valid` 对一个明显错误的值验一遍。
 
 两个平台的代码片段接口形状一致（路径、`files` 哈希、响应里的 `content`/`truncated`/`raw_url` 字段名都相同），差别只在 `http.ts` 的接入方式：GitHub 走 `Authorization` 头 + 自家 Accept 头；Gitee 走 `access_token` 查询参数，不认 GitHub 那套头。
 

@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Form, Button, InputGroup, Badge, Collapse } from 'react-bootstrap'
 import { AiOutlineGithub, AiOutlineCloud, AiOutlineQuestionCircle, AiOutlineCheck } from 'react-icons/ai'
 import optionsStorage from '../utils/optionsStorage'
-import { PROVIDERS, ProviderId } from '../utils/setting'
+import { PROVIDERS, ProviderId, TOKEN_PATTERN, SNIPPET_ID_PATTERN } from '../utils/setting'
 import './SettingsForm.css'
 
 const PROVIDER_IDS: ProviderId[] = ['github', 'gitee']
+/** 需要做格式校验与首尾空白裁剪的字段 */
+const CREDENTIAL_FIELDS = new Set(['githubToken', 'gistID', 'giteeToken', 'giteeGistID'])
 
 /** 获取代码片段 ID 的步骤说明，默认折叠 */
 const SnippetGuide: React.FC<{ id: ProviderId }> = ({ id }) => {
@@ -49,6 +51,7 @@ const CredentialFields: React.FC<{ id: ProviderId; active: boolean }> = ({ id, a
                         size="sm"
                         disabled={!active}
                         autoComplete="off"
+                        pattern={TOKEN_PATTERN}
                     />
                     <InputGroup.Append>
                         <Button variant="outline-secondary" as="a" target="_blank" rel="noreferrer" href={info.tokenUrl} size="sm">
@@ -59,6 +62,7 @@ const CredentialFields: React.FC<{ id: ProviderId; active: boolean }> = ({ id, a
                 <Form.Text className="text-muted">
                     需勾选 <code>{info.tokenScope}</code> 权限，令牌只存在本机浏览器里。
                 </Form.Text>
+                <div className="invalid-hint">未保存：令牌只能包含字母、数字、下划线和连字符，请检查是否多复制了内容</div>
             </Form.Group>
 
             <Form.Group>
@@ -70,7 +74,9 @@ const CredentialFields: React.FC<{ id: ProviderId; active: boolean }> = ({ id, a
                     size="sm"
                     disabled={!active}
                     autoComplete="off"
+                    pattern={SNIPPET_ID_PATTERN}
                 />
+                <div className="invalid-hint">未保存：代码片段 ID 只能包含字母和数字。若粘贴了整个网址，请只保留最后一段</div>
                 <SnippetGuide id={id} />
             </Form.Group>
         </div>
@@ -125,6 +131,23 @@ export const SettingsForm: React.FC = () => {
             form.removeEventListener('options-sync:save-success', onSaved)
             window.clearTimeout(savedTimer.current)
         }
+    }, [])
+
+    // 令牌和片段 ID 不含空白，但粘贴时常带上换行或末尾空格。这里在 syncForm 的防抖保存
+    // 读到之前就把首尾空白裁掉；只裁首尾不删中间 —— 中间有空格说明复制错了，
+    // 该让 pattern 校验把它标红，而不是悄悄拼成一个看似合法的错值。
+    // 直接改 DOM 值，不经 React 状态，不会触发重渲染。
+    useEffect(() => {
+        const form = document.getElementById('formOptions')
+        if (!form) return
+        const onInput = (e: Event) => {
+            const el = e.target as HTMLInputElement | null
+            if (!el || !CREDENTIAL_FIELDS.has(el.name)) return
+            const cleaned = el.value.trim()
+            if (cleaned !== el.value) el.value = cleaned
+        }
+        form.addEventListener('input', onInput)
+        return () => form.removeEventListener('input', onInput)
     }, [])
 
     const info = PROVIDERS[provider]
