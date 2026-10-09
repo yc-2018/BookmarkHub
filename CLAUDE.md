@@ -116,7 +116,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 ### 扩展 ID 与 manifest 的 `key` 字段
 
-`wxt.config.ts` 里的 `EXTENSION_KEY` 是一把 RSA 公钥（base64 的 SPKI DER），Chrome/Edge 构建的 manifest 带 `key` 字段，Firefox 构建不带 —— manifest 用函数形式按 `env.browser` 区分，Firefox 用的是 `browser_specific_settings.gecko.id`，这个字段对它没有意义。**这个值一旦发布就不能改**：扩展 ID = SHA-256(DER 公钥) 前 16 字节、十六进制按 0-f → a-p 映射，固定为 `cagopejcnnfcecidchgcgobaaiikgkgb`；改了等于换 ID，而 `storage` 按 ID 隔离，所有用户的令牌和片段 ID 都要重填。私钥在 `.keys/bookmarkhub.pem`（已 gitignore），只有将来要打 crx 才用得到，丢了不影响现有用户。
+`wxt.config.ts` 里的 `EXTENSION_KEY` 是一把 RSA 公钥（base64 的 SPKI DER），Chrome/Edge 构建的 manifest 带 `key` 字段，Firefox 构建不带 —— manifest 用函数形式按 `env.browser` 区分，Firefox 用的是 `browser_specific_settings.gecko.id`，这个字段对它没有意义。**这个值一旦发布就不能改**：扩展 ID = SHA-256(DER 公钥) 前 16 字节、十六进制按 0-f → a-p 映射，固定为 `cagopejcnnfcecidchgcgobaaiikgkgb`；改了等于换 ID，而 `storage` 按 ID 隔离，所有用户的令牌和片段 ID 都要重填。私钥没有保留：2026-10-09 生成后即删除，无备份，也无法从公钥反推。它只在打签名 crx 或上架商店时才用得到，而本项目只走 zip + 加载已解压 —— 构建、CI、发版、覆盖安装全都不需要它。将来若真要打 crx，只能换新钥匙，等于换 ID、全员迁移一次。
 
 为什么必须有它（2026-10-09 在本机 Chrome 155 上实测，不是推断）：Chromium 把拖进 `chrome://extensions` 的 zip 当作「已解压扩展」安装，解压到 `<profile>/UnpackedExtensions/<包名>_<进程号>_<随机数>/`；没有 `key` 的已解压扩展，ID 来自**解压目录绝对路径**的哈希（`crx_file::id_util::GenerateIdForPath`，Windows 下取路径的 UTF-16LE 字节）。目录名每次都不同 → ID 每次都不同 → 每拖一次就多一条「新扩展」，而且新的那条 storage 是空的、永远停在未配置状态。用户 Chrome 里残留的 `UnpackedExtensions\bookmarkhub-1.0.2-chrome_28692_553569640` 目录和 ID `haedikijkpbmanjmahmpoleebeijcphi` 就是这么来的，按上述算法从该路径算出的 ID 与之完全一致。有了 `key`，ID 与路径无关，再装就是原地覆盖。
 

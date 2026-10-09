@@ -1,7 +1,8 @@
 import { defineConfig } from 'wxt';
 
 /**
- * Chrome 扩展公钥（对应 .keys/bookmarkhub.pem 的公开部分，base64 的 SPKI DER）。
+ * Chrome 扩展公钥（base64 的 SPKI DER）。对应的私钥已删除且无备份：本项目只走 zip 分发，
+ * 不打 crx、不上架，私钥没有用武之地，详见 CLAUDE.md。
  *
  * 唯一作用是把扩展 ID 钉死：ID = SHA-256(DER 公钥)[:16] 映射到 a-p。没有它时，
  * Chromium 对拖入的 zip / 加载已解压的扩展按「解压目录的绝对路径」派生 ID，

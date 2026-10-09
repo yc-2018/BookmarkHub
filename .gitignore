@@ -21,8 +21,8 @@ web-ext.config.ts
 *.zip
 releases/
 
-# 扩展签名私钥（.keys/bookmarkhub.pem）。公钥已固化在 wxt.config.ts 的 key 字段里，
-# 私钥只在将来需要打 crx 时用得到，不公开。
+# 扩展密钥目录。公钥已固化在 wxt.config.ts 的 key 字段里；私钥已删除、不保留（见 CLAUDE.md）。
+# 规则留着，是为了万一本地再生成什么密钥也不会被提交。
 .keys/
 
 # Editor directories and files
