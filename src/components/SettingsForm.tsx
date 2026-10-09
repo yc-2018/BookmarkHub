@@ -22,7 +22,7 @@ const SnippetGuide: React.FC<{ id: ProviderId }> = ({ id }) => {
                         {info.snippetSteps.map((s, i) => <li key={i}>{s}</li>)}
                     </ol>
                     <a className="guide-link" href={info.siteUrl} target="_blank" rel="noreferrer">
-                        打开 {info.name} →
+                        打开 {info.siteName} →
                     </a>
                 </div>
             </Collapse>

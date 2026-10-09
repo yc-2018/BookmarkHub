@@ -9,6 +9,8 @@ export const PROVIDERS: Record<ProviderId, {
     apiBase: string
     /** 代码片段所在站点（Gitee 的新建页带用户名，无法通用，只能给站点首页） */
     siteUrl: string
+    /** 指引里「打开 …」按钮用的站点名，与 name 可能不同（GitHub -> GitHub Gist） */
+    siteName: string
     /** 申请令牌的页面 */
     tokenUrl: string
     /** 令牌需要的权限范围名 */
@@ -21,12 +23,15 @@ export const PROVIDERS: Record<ProviderId, {
     github: {
         name: 'GitHub',
         apiBase: 'https://api.github.com',
+        /** 指引里「打开 …」按钮的文案与目标，GitHub 用 Gist 子站而非主站 */
+        siteName: 'GitHub Gist',
         siteUrl: 'https://gist.github.com/',
         tokenUrl: 'https://github.com/settings/tokens/new?scopes=gist&description=BookmarkHub',
         tokenScope: 'gist',
         snippetSteps: [
-            '打开 gist.github.com，新建一个 Secret gist',
-            '文件名填下面的「文件名」字段（默认 BookmarkHub），内容随便填一个字符',
+            '打开 GitHub Gist，新建一个 Secret gist',
+            '「Filename including extension」填下面的「文件名」字段（默认 BookmarkHub）',
+            '代码内容区随便敲一个字符，不能留空',
             '创建后复制地址栏最后一段，即为代码片段 ID',
         ],
     },
@@ -36,6 +41,7 @@ export const PROVIDERS: Record<ProviderId, {
         // gitee.com/codes/new 是 404，gitee.com/<用户名>/codes/new 才是真实地址，
         // 但用户名拿不到，没法通用，所以只给站点首页，具体步骤见 snippetSteps
         siteUrl: 'https://gitee.com',
+        siteName: 'Gitee',
         tokenUrl: 'https://gitee.com/profile/personal_access_tokens/new',
         tokenScope: 'gists',
         snippetSteps: [

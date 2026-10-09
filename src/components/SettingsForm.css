@@ -10,6 +10,14 @@
     font-size: 12px;
 }
 
+/* InputGroup 里的「去创建」是 <a class="btn">，锚点不像 <input> 那样被归一化字号与行高：
+   Bootstrap 给的是 14px/21px，而输入框是 12px/18px，border-box 下按钮会高出约 2.3px。
+   统一两者的字号与行高即可对齐，不要去写死高度。 */
+.settings .input-group > .input-group-append > .btn {
+    font-size: 12px;
+    line-height: 18px;
+}
+
 .settings .form-text {
     font-size: 10.5px;
     margin-top: .25rem;
