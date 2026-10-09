@@ -1,7 +1,7 @@
 import { BookmarkInfo } from './models'
 import { DiffResult } from './diff'
 
-export type OperName = 'upload' | 'download' | 'removeAll' | 'compare' | 'setting'
+export type OperName = 'upload' | 'download' | 'removeAll' | 'compare'
 
 /** popup 与 background 之间的统一应答格式 */
 export interface OperResult {

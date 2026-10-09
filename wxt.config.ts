@@ -7,7 +7,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react', '@wxt-dev/auto-icons'],
   manifest: {
     name: "BookmarkHub - 书签同步",
-    description: "在不同浏览器之间通过 GitHub Gist 同步书签",
+    description: "在不同浏览器之间同步书签，支持 GitHub Gist 与 Gitee 代码片段作为存储",
     permissions: ['storage', 'bookmarks', 'notifications'],
     host_permissions: [
       "https://*.github.com/",

@@ -1,99 +1,88 @@
-
 <!-- PROJECT LOGO -->
 <br />
 <p align="center">
-  <a href="https://github.com/dudor/BookmarkHub">
+  <a href="https://github.com/yc-2018/BookmarkHub">
     <img src="images/icon128.png" alt="BookmarkHub" >
   </a>
 
-  <h1 align="center">BookmarkHub Auto-Sync</h1>
+  <h1 align="center">BookmarkHub</h1>
   <p align="center">
-    BookmarkHub with real-time auto-sync - automatically syncs your bookmarks when changes are detected.
+    Sync bookmarks across Chrome, Edge and Firefox. Your data lives only in your own GitHub Gist or Gitee snippet.
     <br />
-    <small>Based on original <a href="https://github.com/dudor/BookmarkHub">BookmarkHub</a> by dudor</small>
+    <small>A fork of <a href="https://github.com/dudor/BookmarkHub">dudor/BookmarkHub</a></small>
     <br />
-    <a href="https://github.com/dudor/BookmarkHub/issues">Feedback</a>
+    <a href="https://github.com/yc-2018/BookmarkHub/releases">Download</a>
+    ·
+    <a href="https://github.com/yc-2018/BookmarkHub/issues">Issues</a>
     ·
     <a href="/README_cn.md">简体中文</a>
-    ·
-    <a href="/README.md">English</a>
   </p>
 </p>
 
-<!-- TABLE OF CONTENTS -->
-<details open="open">
-  <summary><h2 style="display: inline-block">Table of Contents</h2></summary>
-  <ol>
-    <li><a href="#about-the-project">About The Project</a></li>
-    <li><a href="#features">Features</a></li>
-    <li><a href="#installation">Installation</a></li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-  </ol>
-</details>
+> The UI of this fork is **Chinese only**. See [README_cn.md](README_cn.md) for the full guide; this page is a summary.
 
-<!-- ABOUT THE PROJECT -->
-## About The Project 
+## What it is
 
-BookmarkHub is a browser plug-in that can synchronize your bookmarks between different browsers.
+A browser extension. One click uploads your local bookmarks to a remote store; on another machine or browser, one click downloads them back. There is no server and no account to register — the bookmarks are a single JSON file in a Gist or Gitee snippet you own.
 
-For major browsers such as Chrome, Firefox, Microsoft Edge, and more.
-
-It uses GitHub's Gist records to store browser bookmarks for safe and secure use.
-
-![BookmarkHub](images/3.gif)
-
-![BookmarkHub](images/1.png)
-
-![BookmarkHub](images/2.png)
+<p align="center">
+  <img src="images/popup-sync.png" width="300" alt="Sync tab">
+  &nbsp;&nbsp;
+  <img src="images/popup-settings.png" width="300" alt="Settings tab">
+</p>
 
 ## Features
-* No registration required, just use the Token and Gist of your GitHub account
-* Easy to upload and download bookmarks with one click
-* Clear all local bookmarks with one click
-* Support cross-machine and cross-browser synchronization of bookmarks
-* Support to display the number of local and remote bookmarks
 
+- **Gitee support** for users who cannot reach GitHub reliably. Credentials for both platforms are stored separately and can be switched at any time
+- **Compare before you sync**: fetches the remote tree, diffs it against local bookmarks, and groups the differences (local-only, remote-only, moved, retitled, reordered, folder changes) so you can choose the direction with full information
+- **Confirmation for every destructive step**: upload, download and clear each show a dialog spelling out what will be overwritten
+- Settings live inside the popup; a first launch opens straight into configuration
+- Local and remote bookmark counts; a `!` badge appears when local changes have not been synced
 
 ## Installation
-> This plug-in requires bookmarks to be stored in Gist, so make sure you have a GitHub account or register your GitHub account over the network.
-* [Chrome](https://chrome.google.com/webstore/detail/bookmarkhub-sync-bookmark/fohimdklhhcpcnpmmichieidclgfdmol)
-* [Firefox](https://addons.mozilla.org/en/firefox/addon/BookmarkHub/)
-* [Microsoft Edge](https://microsoftedge.microsoft.com/addons/detail/BookmarkHub/fdnmfpogadcljhecfhdikdecbkggfmgk)
-* [Other browsers based on the Chromium kernel](https://chrome.google.com/webstore/detail/bookmarkhub-sync-bookmark/fohimdklhhcpcnpmmichieidclgfdmol)
 
-<!-- USAGE EXAMPLES -->
+Packages are on [GitHub Releases](https://github.com/yc-2018/BookmarkHub/releases):
+
+| File | For |
+|---|---|
+| `bookmarkhub-<version>-chrome.zip` | Chrome, Edge and other Chromium browsers |
+| `bookmarkhub-<version>-firefox.zip` | Firefox |
+| `bookmarkhub-<version>-sources.zip` | Source archive for Firefox review only |
+
+**Chrome / Edge**: unzip → open `chrome://extensions` (`edge://extensions`) → enable *Developer mode* → *Load unpacked* → pick the unzipped folder.
+
+**Firefox**: open `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → pick the firefox zip. Temporary add-ons are removed when Firefox restarts.
+
+> The BookmarkHub listed in the browser stores is the upstream version by dudor and **does not** include this fork's changes.
+
 ## Usage
 
-1. [Login](https://github.com/login) GitHub，If you don't have an account, please [click here to register](https://github.com/join)。
-2. [Create a token that manages the gist](https://github.com/settings/tokens/new)。
-3. [Create a secret gist](https://gist.github.com)。__Note: If it's a public gist, your bookmarks can be searched by others。__
-4. Download BookmarkHub in the browser store, click the plug-in's settings button, fill in the token and gist ID in the pop-up settings window, and you can upload the download bookmark。
+1. Prepare a store — either one:
+   - **GitHub**: [create a token](https://github.com/settings/tokens/new?scopes=gist&description=BookmarkHub) with the `gist` scope, then create a **secret** gist on [gist.github.com](https://gist.github.com) with the filename `BookmarkHub` and any single character as content. The last path segment of its URL is the snippet ID.
+   - **Gitee**: [create a personal access token](https://gitee.com/profile/personal_access_tokens/new) with the `gists` scope, then hover the "+" at the top right → 发布代码片段, naming the snippet `BookmarkHub`. The last path segment of its URL is the snippet ID.
+2. Click the toolbar icon. The first launch opens on Settings: pick the platform, paste the token and snippet ID. Changes save automatically.
+3. Switch to the Sync tab: **upload** (local overwrites remote), **download** (remote overwrites local), or **compare** first and decide from the diff.
 
-<!-- ROADMAP -->
-## Roadmap
+## Why there is no auto-sync
 
-- [ ] Automatically sync bookmarks
-- [ ] Support webdav protocol
-- [ ] Mobile app
-- [ ] Import and Export
-- [ ] Share bookmarks
+An earlier version synced automatically on every change. It was removed: an MV3 background worker is terminated after a few idle seconds and its timers die with it, so the mechanism was unreliable in practice — and a silent whole-tree overwrite in the background can delete bookmarks if it guesses the direction wrong. Every sync is now explicit and confirmed.
 
-<!-- LICENSE -->
-## License
+## Known limitations
 
-See `LICENSE` for more information.
+- Sync replaces the whole tree; there is no per-item merge. If both sides changed, compare first.
+- Gitee rejects emoji server-side. The extension escapes them on upload and restores them on download, so titles are unaffected; only the raw file on gitee.com shows the escaped form.
 
+## Development
 
+```bash
+pnpm install
+pnpm run dev          # Chrome dev mode
+pnpm run build        # .output/chrome-mv3/
+pnpm run zip
+```
 
-<!-- CONTACT -->
-## Contact
+Built with WXT, React and TypeScript. Architecture notes, the release procedure and the traps encountered along the way are in [CLAUDE.md](CLAUDE.md) (Chinese).
 
-dudor
+## License and credits
 
-Project Link: [https://github.com/dudor/BookmarkHub](https://github.com/dudor/BookmarkHub)
-
-
-
+Derived from [dudor/BookmarkHub](https://github.com/dudor/BookmarkHub). See [LICENSE](LICENSE) and [NOTICE.txt](NOTICE.txt).

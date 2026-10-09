@@ -45,9 +45,6 @@ export default defineBackground(() => {
         return runExclusive(OperType.REMOVE, removeAllBookmarks)
       case 'compare':
         return compareBookmarks()
-      case 'setting':
-        await browser.runtime.openOptionsPage()
-        return { ok: true }
       default:
         return { ok: false, error: `未知操作：${msg?.name ?? ''}` }
     }

@@ -95,8 +95,8 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 | `bookmarks.ts` | 书签树处理：`formatBookmarks`（归一化，**深拷贝不改入参**）、`getBookmarkCount`、`detectBrowserType`、根目录中文展示名映射 |
 | `diff.ts` | 本地与远端比对：`flattenBookmarks`、`diffBookmarks`、`DiffResult` |
 | `messages.ts` | 弹窗与后台之间的消息类型 `OperMessage` / `OperResult`，以及 `sendOper()` |
-| `services.ts` | `BookmarkService`，封装 GitHub Gist API |
-| `http.ts` | ky 客户端，自动注入 GitHub 认证头 |
+| `services.ts` | `BookmarkService`，封装代码片段的读写；Gitee 分支负责 emoji 转义与 JSON 请求体 |
+| `http.ts` | `createClient(setting)`，按所选平台创建 ky 客户端并注入各自的认证方式 |
 | `setting.ts` | `Setting.build()` 读取配置 |
 | `optionsStorage.ts` | webext-options-sync 的默认值定义 |
 | `models.ts` | `BookmarkInfo`、`SyncDataInfo` 及各枚举 |
