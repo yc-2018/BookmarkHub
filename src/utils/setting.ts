@@ -7,24 +7,43 @@ export type ProviderId = 'github' | 'gitee'
 export const PROVIDERS: Record<ProviderId, {
     name: string
     apiBase: string
-    /** 新建代码片段的页面 */
-    newGistUrl: string
+    /** 代码片段所在站点（Gitee 的新建页带用户名，无法通用，只能给站点首页） */
+    siteUrl: string
     /** 申请令牌的页面 */
     tokenUrl: string
+    /** 令牌需要的权限范围名 */
+    tokenScope: string
+    /** 获取代码片段 ID 的步骤说明 */
+    snippetSteps: string[]
     /** description 字段的长度上限，超出会被平台拒绝；undefined 表示无限制 */
     descriptionMaxLength?: number
 }> = {
     github: {
         name: 'GitHub',
         apiBase: 'https://api.github.com',
-        newGistUrl: 'https://gist.github.com/',
+        siteUrl: 'https://gist.github.com/',
         tokenUrl: 'https://github.com/settings/tokens/new?scopes=gist&description=BookmarkHub',
+        tokenScope: 'gist',
+        snippetSteps: [
+            '打开 gist.github.com，新建一个 Secret gist',
+            '文件名填下面的「文件名」字段（默认 BookmarkHub），内容随便填一个字符',
+            '创建后复制地址栏最后一段，即为代码片段 ID',
+        ],
     },
     gitee: {
-        name: 'Gitee',
+        name: 'Gitee 码云',
         apiBase: 'https://gitee.com/api/v5',
-        newGistUrl: 'https://gitee.com/codes',
-        tokenUrl: 'https://gitee.com/personal_access_tokens/new',
+        // gitee.com/codes/new 是 404，gitee.com/<用户名>/codes/new 才是真实地址，
+        // 但用户名拿不到，没法通用，所以只给站点首页，具体步骤见 snippetSteps
+        siteUrl: 'https://gitee.com',
+        tokenUrl: 'https://gitee.com/profile/personal_access_tokens/new',
+        tokenScope: 'gists',
+        snippetSteps: [
+            '登录 Gitee 后，鼠标移到右上角的「+」号',
+            '点击弹出菜单里的「发布代码片段」',
+            '各字段随意填，其中「代码片段」一栏建议填 BookmarkHub，与下面的「文件名」保持一致',
+            '发布后复制地址栏最后一段，即为代码片段 ID',
+        ],
         // Gitee 文档标明 description 限 1~30 个字符
         descriptionMaxLength: 30,
     },

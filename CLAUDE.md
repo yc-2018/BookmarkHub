@@ -129,6 +129,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 - 单文件 1 MB 写入/读回正常、不截断，书签数据量远够用。
 - `files[name] = null` 可删除文件，与 GitHub 语义一致。
 - 文档说 `description` 限 30 字符，但 PATCH 时并不强制；代码仍按 30 截断，无害。
+- **Gitee 的页面地址有坑**（已逐个探测确认）：`gitee.com/personal_access_tokens/new` 是 404，正确的令牌页是 `gitee.com/profile/personal_access_tokens/new`（未登录时 307 跳登录页），且不支持预填参数；新建代码片段的真实地址是 `gitee.com/<用户名>/codes/new`，用户名拿不到所以无法通用（`gitee.com/codes/new` 404、`gitee.com/user/codes/new` 403），因此 `PROVIDERS.gitee.siteUrl` 只给站点首页，具体操作写在 `snippetSteps` 里（右上角「+」→「发布代码片段」）。
 
 设置页里**非活动平台的凭据组保留在 DOM 中但整体 `disabled`**。`syncForm` 保存时读取表单内所有非 disabled 字段并与已存值合并写回，所以 disabled 的那组不会被碰。不能改成一组输入框按平台换 `name`：切换瞬间输入框是空的，会以另一个平台的键名存成空串、把凭据抹掉。这一点已用 CDP 实测验证。
 
@@ -159,14 +160,19 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 ## 界面约定
 
+- 弹窗是唯一主界面，分「同步」「设置」两个标签页，设置不再另开页面。`src/components/SettingsForm.tsx` 被弹窗标签页和独立设置页共用（后者保留是为了右键图标 →「选项」仍可用），样式在同目录的 `SettingsForm.css` 里，两边 import 同一份、不要复制规则
+- **设置面板用 CSS 隐藏而非卸载**。`syncForm` 持有的是 DOM 表单引用，标签页切换若卸载组件会让它失去表单；用 `d-none` 保持挂载，隐藏的字段仍会被保存逻辑读到（这也是非活动平台凭据组必须 `disabled` 的原因）
+- 弹窗固定 25rem（400px）宽。三个视图实测高度：同步 299px、设置 586px、对比 478px —— **Chrome 弹窗高度上限 600px**，新增内容时要留意别越过，否则会出现内部滚动条
 - **没有 i18n**。`_locales/` 和 `default_locale` 已全部移除，中文直接写在代码里。新增文案直接写中文，不要重新引入 `browser.i18n.getMessage`
 - 依赖停留在 Bootstrap 4 时代：`react-bootstrap@1` + `bootstrap@4`。用的是 v1 API（`InputGroup.Append`、`Badge variant`、`Button block`），不要混用 v2 写法
 - 设置页表单由 `optionsStorage.syncForm()` 直接操作 DOM 完成读写，字段只需带正确的 `name`，**不需要** react-hook-form 之类的表单库
-- **设置页里不能有 React 受控输入**（不要传 `value`）。浏览器对 `<select>` 先派发 `input` 再派发 `change`；`input` 触发的任何重渲染（比如「已保存」徽标）都会把受控 `value` 写回旧状态，`change` 到达时值已被改回去，表现为「选了又弹回」。让 syncForm 拥有 DOM 值，React 只通过 `onChange` 和 `browser.storage.onChanged` 镜像它。用 CDP 模拟时必须按真实顺序派发 `input` → `change`，反过来会把这类问题盖住
-- 破坏性操作（上传、下载、清空）必须先弹确认框并写明后果，执行期间要有加载动画
-- 未完成配置时隐藏上传/下载/对比，只显示引导去设置 —— 这些操作没有 token 和 gist id 必然失败
-- 弹窗默认 17rem 宽，对比面板靠 `body.wide` 切到 26rem
+- **设置页里不能有 React 受控输入**（不要传 `value`/`checked`）。浏览器对 `<select>`、单选框先派发 `input` 再派发 `change`；`input` 阶段触发的任何重渲染都会把受控值写回旧状态，`change` 到达时已被改回去，表现为「选了又弹回」。让 syncForm 拥有 DOM 值，React 只通过 `onChange` 和 `browser.storage.onChanged` 镜像它，再用**只依赖该状态**的 effect 回写 DOM
+- 保存反馈挂在库的 `options-sync:save-success` 事件上（冒泡到表单），不要用表单的 `onInput` —— 后者正好在上面那个危险窗口里触发重渲染
+- 平台选择是**原生单选框**外面套卡片样式：`input[type=radio]` 透明隐藏但留在表单里，`syncForm` 才读得到（序列化库对 radio 的处理是 `KeyAssignmentValidators` 只接受 `checked` 的那个、读取走默认的 `el.value`）
+- 破坏性操作（上传、下载、清空）必须先弹确认框并写明后果，执行期间要有加载动画。清空书签作为弱化的次要入口，不与上传下载同级
+- 未完成配置时隐藏上传/下载/对比，只显示引导去「设置」标签页 —— 这些操作没有令牌和片段 ID 必然失败。**首次读取发现未配置会直接把初始标签页设为「设置」**，省掉一次点击；只在首次生效，用户之后手动切回「同步」或正在输入时不会被拽走
 - 改完界面要实机验证渲染，类型检查和构建发现不了布局问题。本机没有 Chrome，用 Edge 加独立临时配置通过 CDP 加载 `.output/chrome-mv3` 截图
+- **CDP 模拟事件必须贴近真实**：按 `input` → `change` 顺序派发；且 React 对单选框/复选框的 `onChange` 实际绑定在 `click` 上，只派发 `change` 不会触发它。验证交互优先用 `Input.dispatchMouseEvent` 真实点击。多个同类元素（比如两个平台各有一个指引入口）要用「取可见的那个」而非 `querySelector`
 
 ## 其他注意事项
 

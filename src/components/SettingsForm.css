@@ -1,0 +1,189 @@
+/* 设置表单样式。由 SettingsForm.tsx 直接 import，弹窗和独立设置页共用，
+   避免同一套规则在 popup.css 和 options.css 里重复维护。 */
+
+.settings .form-group {
+    margin-bottom: .6rem;
+}
+
+.settings .form-control,
+.settings .btn {
+    font-size: 12px;
+}
+
+.settings .form-text {
+    font-size: 10.5px;
+    margin-top: .25rem;
+    line-height: 1.5;
+}
+
+.settings code {
+    font-size: 10px;
+    padding: .05rem .25rem;
+    background: #f1f3f5;
+    border-radius: .2rem;
+    color: #d63384;
+}
+
+.field-label {
+    font-size: 11px;
+    color: #495057;
+    margin-bottom: .2rem;
+    font-weight: 500;
+}
+
+.settings-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: .25rem 0 .5rem;
+    padding-top: .2rem;
+}
+
+.settings-section:not(:first-child) {
+    margin-top: .7rem;
+    border-top: 1px solid #f1f3f5;
+    padding-top: .6rem;
+}
+
+.settings-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #212529;
+}
+
+/* 固定占位，徽标出现/消失时不引起跳动 */
+.saved-flag {
+    visibility: hidden;
+    font-size: 10px;
+}
+
+.saved-flag.is-on {
+    visibility: visible;
+}
+
+.saved-flag .badge {
+    font-weight: 500;
+    font-size: 10px;
+}
+
+.saved-flag .bh-icon {
+    width: .9em;
+    height: .9em;
+    margin-right: .15rem;
+}
+
+/* ---- 平台单选卡 ---- */
+
+.provider-choice {
+    display: flex;
+    gap: .5rem;
+    margin-bottom: .25rem;
+}
+
+.provider-option {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .1rem;
+    margin: 0;
+    padding: .5rem .35rem;
+    border: 1px solid #dee2e6;
+    border-radius: .4rem;
+    cursor: pointer;
+    background: #fff;
+    transition: border-color .12s, background-color .12s;
+}
+
+.provider-option:hover {
+    border-color: #adb5bd;
+}
+
+.provider-option.is-active {
+    border-color: #0d6efd;
+    background: #f0f6ff;
+}
+
+/* 原生单选框隐藏但仍留在表单里，syncForm 才能读写它 */
+.provider-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.provider-option-icon {
+    line-height: 1;
+}
+
+.provider-option-icon .bh-icon {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin: 0;
+    color: #6c757d;
+}
+
+.provider-option.is-active .provider-option-icon .bh-icon {
+    color: #0d6efd;
+}
+
+.provider-option-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #212529;
+    white-space: nowrap;
+}
+
+.provider-option-note {
+    font-size: 10px;
+    color: #6c757d;
+    white-space: nowrap;
+}
+
+/* ---- 代码片段 ID 获取指引 ---- */
+
+.guide {
+    margin-top: .3rem;
+}
+
+.guide-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 10.5px;
+    color: #0d6efd;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+}
+
+.guide-toggle .bh-icon {
+    width: .95em;
+    height: .95em;
+    margin-right: .2rem;
+}
+
+.guide-steps {
+    margin: .35rem 0 .25rem;
+    padding-left: 1.1rem;
+    font-size: 10.5px;
+    color: #495057;
+    line-height: 1.65;
+}
+
+.guide-steps li {
+    margin-bottom: .1rem;
+}
+
+.guide-link {
+    font-size: 10.5px;
+}
+
+/* ---- 开关 ---- */
+
+.switch-row .custom-control-label {
+    font-size: 12px;
+    padding-top: .1rem;
+}

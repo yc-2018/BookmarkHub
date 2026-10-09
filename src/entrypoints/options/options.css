@@ -1,62 +1,22 @@
+/* 独立设置页。表单样式由 SettingsForm.css 提供，这里只补页面级布局。 */
+
 #root {
-    margin: 0;
-    padding: 12px 4px;
-    width: 560px;
+    width: 26rem;
     font-size: 13px;
 }
 
-.options-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1rem;
+.options-page {
+    padding: 14px 16px 16px;
 }
 
 .options-title {
-    margin: 0;
+    margin: 0 0 .9rem;
     font-weight: 600;
 }
 
-/* 固定宽度占位，避免「已保存」出现/消失时标题跳动 */
-.options-saved-slot {
-    min-width: 3.5rem;
-    text-align: right;
-}
-
-.form-group {
-    margin-bottom: 1rem;
-}
-
-.options-section {
-    font-size: 11px;
-    font-weight: 600;
-    color: #495057;
-    text-transform: none;
-    margin-bottom: .75rem;
-}
-
-hr {
-    margin-top: .5rem;
-    margin-bottom: 1rem;
-    border-top-color: #f1f3f5;
-}
-
-.form-text {
-    font-size: 11px;
-    margin-top: .25rem;
-}
-
-code {
-    font-size: 11px;
-    padding: .1rem .25rem;
-    background: #f1f3f5;
-    border-radius: .2rem;
-    color: #d63384;
-}
-
-.options-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 11px;
+.bh-icon {
+    vertical-align: -0.15em;
+    margin-right: .35rem;
+    width: 1.05em;
+    height: 1.05em;
 }

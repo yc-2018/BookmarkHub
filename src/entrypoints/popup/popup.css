@@ -1,64 +1,124 @@
+/* ========== 基础 ========== */
+
 #root {
-    width: 17rem;
-    min-height: 11rem;
-    height: auto;
+    width: 25rem;
     position: relative;
+    font-size: 13px;
 }
 
-/* 对比面板需要更宽的空间 */
-body.wide #root {
-    width: 26rem;
+.bh-icon {
+    vertical-align: -0.15em;
+    margin-right: .35rem;
+    width: 1.05em;
+    height: 1.05em;
 }
 
-.list-group-item {
-    padding: 0.25rem 1.25rem !important;
-}
+/* ========== 顶部品牌栏 ========== */
 
-.card-header {
-    padding: 0.25rem 1rem !important;
-}
-
-.dropdown-menu {
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    border: none !important;
-    width: 100% !important;
-    /* 默认是 absolute，会盖住上方的结果提示条 */
-    position: static !important;
-    float: none !important;
-}
-
-.dropdown-item,
-.dropdown-item-text {
-    font-size: 12px !important;
-    padding: .5rem 1rem !important;
-    vertical-align: middle !important;
-}
-
-.dropdown-item-icon {
-    vertical-align: middle;
-    margin-right: 5px;
-    width: 1.1rem;
-    height: 1.1rem;
-}
-
-.dropdown-item a,
-.dropdown-item-text a {
-    color: inherit;
-}
-
-/* ---------- 未配置引导 / 加载态 ---------- */
-
-.popup-loading {
-    display: flex !important;
+.bh-head {
+    display: flex;
     align-items: center;
-    gap: .4rem;
-    color: #6c757d;
-    font-size: 12px !important;
+    justify-content: space-between;
+    padding: .6rem .85rem .5rem;
 }
+
+.bh-brand {
+    font-weight: 600;
+    font-size: 13px;
+    color: #212529;
+}
+
+.bh-brand .bh-icon {
+    color: #0d6efd;
+}
+
+.bh-platform {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    color: #495057;
+    background: #f1f3f5;
+    border-radius: 10rem;
+    padding: .15rem .55rem;
+    white-space: nowrap;
+}
+
+.bh-platform .bh-icon {
+    margin-right: .25rem;
+    width: .95em;
+    height: .95em;
+}
+
+/* ========== 标签页 ========== */
+
+.bh-tabs {
+    padding: 0 .85rem;
+    border-bottom: 1px solid #dee2e6;
+    flex-wrap: nowrap;
+}
+
+.bh-tabs .nav-link {
+    font-size: 12px;
+    padding: .35rem .9rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #6c757d;
+    background: none;
+    cursor: pointer;
+}
+
+.bh-tabs .nav-link:hover {
+    color: #212529;
+    border-color: transparent;
+}
+
+.bh-tabs .nav-link.active {
+    color: #0d6efd;
+    background: none;
+    border-color: #0d6efd;
+    font-weight: 600;
+}
+
+.bh-pane {
+    padding: .85rem;
+}
+
+.bh-loading {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    color: #6c757d;
+    font-size: 12px;
+    padding: 1.5rem 0;
+    justify-content: center;
+}
+
+/* ========== 结果提示 ========== */
+
+.popup-alert {
+    font-size: 12px;
+    margin: .6rem .85rem 0;
+    padding: .45rem .6rem;
+    border-radius: .3rem;
+}
+
+.popup-alert .close {
+    padding: .3rem .5rem;
+    font-size: 1.05rem;
+}
+
+/* ========== 未配置引导 ========== */
 
 .setup-guide {
-    padding: .75rem 1rem 1rem;
+    text-align: center;
+    padding: 1.1rem .5rem .5rem;
+}
+
+.setup-guide-mark {
+    width: 1.9rem;
+    height: 1.9rem;
+    color: #adb5bd;
+    margin-bottom: .5rem;
 }
 
 .setup-guide-title {
@@ -70,108 +130,133 @@ body.wide #root {
 .setup-guide-text {
     font-size: 11px;
     color: #6c757d;
-    line-height: 1.5;
-    margin-bottom: .6rem;
+    line-height: 1.6;
+    margin-bottom: .85rem;
 }
 
 .setup-guide .btn {
     font-size: 12px;
 }
 
-/* ---------- 清空 / 设置 并排一行 ---------- */
+/* ========== 数量对照卡 ========== */
 
-.popup-split-row {
+.count-card {
     display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.1rem;
+    background: #f8f9fa;
+    border: 1px solid #f1f3f5;
+    border-radius: .4rem;
+    padding: .65rem;
+    margin-bottom: .85rem;
 }
 
-.popup-split-item {
+.count-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 3.5rem;
+}
+
+.count-num {
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: #212529;
+    font-variant-numeric: tabular-nums;
+}
+
+.count-label {
+    font-size: 10px;
+    color: #6c757d;
+    margin-top: .1rem;
+}
+
+.count-arrow {
+    width: 1.1rem;
+    height: 1.1rem;
+    color: #adb5bd;
+    margin: 0;
+    flex: none;
+}
+
+/* ========== 操作按钮 ========== */
+
+.action-row {
+    display: flex;
+    gap: .5rem;
+    margin-bottom: .5rem;
+}
+
+.action-row .btn {
     flex: 1 1 0;
     min-width: 0;
-    background: none;
-    border: none;
-    padding: .5rem 1rem;
     font-size: 12px;
-    text-align: center;
-    color: #212529;
-    cursor: pointer;
     white-space: nowrap;
 }
 
-.popup-split-item + .popup-split-item {
-    border-left: 1px solid #f1f3f5;
+.action-compare {
+    font-size: 12px !important;
+    margin-bottom: .25rem;
 }
 
-.popup-split-item:hover:not(:disabled) {
-    background: #f8f9fa;
+.danger-link {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: .45rem 0 .1rem;
+    font-size: 11px;
+    color: #adb5bd;
+    cursor: pointer;
+    text-align: center;
 }
 
-.popup-split-item:disabled {
+.danger-link:hover:not(:disabled) {
+    color: #dc3545;
+}
+
+.danger-link:disabled {
     opacity: .5;
     cursor: default;
 }
 
-.popup-split-danger:hover:not(:disabled) {
-    background: #fdf2f2;
-    color: #dc3545;
-}
+/* ========== 底部 ========== */
 
-/* ---------- 底部信息栏 ---------- */
-
-.popup-foot {
-    display: flex !important;
+.bh-foot {
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: .5rem;
-    color: #6c757d;
+    padding: .5rem .85rem .6rem;
     border-top: 1px solid #f1f3f5;
+    font-size: 11px;
 }
 
-.popup-foot a {
-    color: #6c757d !important;
+.bh-foot a {
+    color: #6c757d;
     text-decoration: none;
-    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
 }
 
-.popup-foot a:hover {
-    color: #0d6efd !important;
+.bh-foot a:hover {
+    color: #0d6efd;
 }
 
-.popup-foot-counts {
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-}
-
-.popup-foot-counts b {
-    color: #212529;
-}
-
-/* ---------- 结果提示 ---------- */
-
-.popup-alert {
-    font-size: 12px;
-    margin: .5rem .5rem 0;
-    padding: .4rem .6rem;
-    border-radius: .25rem;
-}
-
-.popup-alert .close {
-    padding: .25rem .5rem;
-    font-size: 1.1rem;
-}
-
-/* ---------- 对比视图 ---------- */
+/* ========== 对比视图 ========== */
 
 .compare-view {
     display: flex;
     flex-direction: column;
-    padding: .5rem;
+    padding: .6rem .85rem .85rem;
 }
 
 .compare-head {
     display: flex;
     align-items: center;
     gap: .25rem;
-    padding-bottom: .4rem;
+    padding-bottom: .45rem;
     border-bottom: 1px solid #e9ecef;
 }
 
@@ -229,7 +314,7 @@ body.wide #root {
 }
 
 .diff-groups {
-    max-height: 22rem;
+    max-height: 21rem;
     overflow-y: auto;
     overflow-x: hidden;
 }
@@ -331,7 +416,6 @@ body.wide #root {
 
 .compare-actions .btn {
     font-size: 12px;
-    /* basis 设 0，两个主按钮等分剩余宽度并可收缩，避免把「返回」挤出可视区 */
     flex: 1 1 0;
     min-width: 0;
     white-space: nowrap;
@@ -343,14 +427,8 @@ body.wide #root {
     flex: 0 0 auto;
 }
 
-.compare-actions svg {
-    vertical-align: middle;
-    margin-right: .2rem;
-}
+/* ========== 确认框 ========== */
 
-/* ---------- 确认框 ---------- */
-
-/* 弹窗宽度很窄，让确认框铺满可用空间 */
 .modal-dialog {
     max-width: none !important;
     margin: .5rem !important;
@@ -373,7 +451,6 @@ body.wide #root {
     font-size: 12px;
 }
 
-/* 打开确认框时 body 会被加上 padding-right，窄弹窗里会抖 */
 body.modal-open {
     padding-right: 0 !important;
     overflow: hidden;
