@@ -143,7 +143,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 - 单文件 1 MB 写入/读回正常、不截断，书签数据量远够用。
 - `files[name] = null` 可删除文件，与 GitHub 语义一致。
 - 文档说 `description` 限 30 字符，但 PATCH 时并不强制；代码仍按 30 截断，无害。
-- **Gitee 的页面地址有坑**（已逐个探测确认）：`gitee.com/personal_access_tokens/new` 是 404，正确的令牌页是 `gitee.com/profile/personal_access_tokens/new`（未登录时 307 跳登录页），且不支持预填参数；新建代码片段的真实地址是 `gitee.com/<用户名>/codes/new`，用户名拿不到所以无法通用（`gitee.com/codes/new` 404、`gitee.com/user/codes/new` 403），因此 `PROVIDERS.gitee.siteUrl` 只给站点首页，具体操作写在 `snippetSteps` 里（右上角「+」→「发布代码片段」）。
+- **Gitee 的页面地址有坑**（已逐个探测确认）：`gitee.com/personal_access_tokens/new` 是 404，正确的令牌页是 `gitee.com/profile/personal_access_tokens/new`（未登录时 307 跳登录页），且不支持预填参数；新建代码片段的真实地址是 `gitee.com/<用户名>/codes/new`，用户名拿不到所以无法通用（`gitee.com/codes/new` 404、`gitee.com/user/codes/new` 403），因此 `PROVIDERS.gitee.siteUrl` 指向代码片段列表页 `gitee.com/dashboard/codes`（未登录时 302 跳登录页，而 `/dashboard/` 下的无效路径是 404，可确认页面真实存在），具体操作写在 `snippetSteps` 里（右上角「+」→「发布代码片段」）。
 
 设置页里**非活动平台的凭据组保留在 DOM 中但整体 `disabled`**。`syncForm` 保存时读取表单内所有非 disabled 字段并与已存值合并写回，所以 disabled 的那组不会被碰。不能改成一组输入框按平台换 `name`：切换瞬间输入框是空的，会以另一个平台的键名存成空串、把凭据抹掉。这一点已用 CDP 实测验证。
 

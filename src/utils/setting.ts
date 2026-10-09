@@ -7,7 +7,7 @@ export type ProviderId = 'github' | 'gitee'
 export const PROVIDERS: Record<ProviderId, {
     name: string
     apiBase: string
-    /** 代码片段所在站点（Gitee 的新建页带用户名，无法通用，只能给站点首页） */
+    /** 代码片段所在站点（Gitee 指向代码片段列表页，新建页带用户名无法通用） */
     siteUrl: string
     /** 指引里「打开 …」按钮用的站点名，与 name 可能不同（GitHub -> GitHub Gist） */
     siteName: string
@@ -38,9 +38,9 @@ export const PROVIDERS: Record<ProviderId, {
     gitee: {
         name: 'Gitee 码云',
         apiBase: 'https://gitee.com/api/v5',
-        // gitee.com/codes/new 是 404，gitee.com/<用户名>/codes/new 才是真实地址，
-        // 但用户名拿不到，没法通用，所以只给站点首页，具体步骤见 snippetSteps
-        siteUrl: 'https://gitee.com',
+        // /dashboard/codes 是代码片段列表页（未登录 302 跳登录页）；新建页
+        // gitee.com/<用户名>/codes/new 带用户名，没法通用，所以指向列表页
+        siteUrl: 'https://gitee.com/dashboard/codes',
         siteName: 'Gitee',
         tokenUrl: 'https://gitee.com/profile/personal_access_tokens/new',
         tokenScope: 'gists',
