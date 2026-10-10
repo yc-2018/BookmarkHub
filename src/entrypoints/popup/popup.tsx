@@ -335,7 +335,7 @@ const Popup: React.FC = () => {
                         {checkingUpdate ? '检查中…' : '检查更新'}
                     </button>
                 </span>
-                <a href="https://github.com/yc-2018" target="_blank" rel="noreferrer" title="开发者">
+                <a href="https://github.com/yc-2018/BookmarkHub" target="_blank" rel="noreferrer" title="开发者">
                     <AiOutlineGithub />yc-2018
                 </a>
             </div>
