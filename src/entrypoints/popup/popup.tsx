@@ -6,12 +6,12 @@ import {
     AiOutlineCloudUpload, AiOutlineCloudDownload,
     AiOutlineSetting, AiOutlineClear, AiOutlineSwap,
     AiOutlineGithub, AiOutlineArrowLeft, AiOutlineCloud,
-    AiOutlineQuestionCircle, AiOutlineSync
+    AiOutlineQuestionCircle, AiOutlineSync, AiOutlineExport
 } from 'react-icons/ai'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './popup.css'
-import { BookmarkInfo } from '../../utils/models'
-import { getBookmarkCount } from '../../utils/bookmarks'
+import { BookmarkInfo, SyncDataInfo } from '../../utils/models'
+import { formatBookmarks, getBookmarkCount } from '../../utils/bookmarks'
 import { DiffResult } from '../../utils/diff'
 import { OperName, sendOper } from '../../utils/messages'
 import { Setting, isConfigured, providerId, providerInfo } from '../../utils/setting'
@@ -42,6 +42,7 @@ const Popup: React.FC = () => {
     const [confirm, setConfirm] = useState<ConfirmSpec | null>(null)
     const [alertMsg, setAlertMsg] = useState<{ ok: boolean; text: string; link?: { href: string; label: string } } | null>(null)
     const [checkingUpdate, setCheckingUpdate] = useState(false)
+    const [exporting, setExporting] = useState(false)
     const [diff, setDiff] = useState<DiffResult | null>(null)
     const [remoteBookmarks, setRemoteBookmarks] = useState<BookmarkInfo[] | undefined>(undefined)
     const [localCount, setLocalCount] = useState<number | null>(null)
@@ -118,6 +119,41 @@ const Popup: React.FC = () => {
             setComparing(true)
         } else {
             setAlertMsg({ ok: false, text: res.error ?? '对比失败' })
+        }
+    }
+
+    /**
+     * 导出本地书签成 JSON 文件。
+     * 内容与上传到代码片段的完全一致（同一套归一化 + SyncDataInfo），
+     * 所以导出的文件既是备份，也能直接贴回片段里。全程在本地完成，不碰网络。
+     */
+    const runExport = async () => {
+        setAlertMsg(null)
+        setExporting(true)
+        try {
+            const tree = await browser.bookmarks.getTree() as BookmarkInfo[]
+            const syncdata = new SyncDataInfo()
+            syncdata.version = VERSION
+            syncdata.createDate = Date.now()
+            syncdata.browser = navigator.userAgent
+            syncdata.bookmarks = formatBookmarks(tree)
+            const url = URL.createObjectURL(
+                new Blob([JSON.stringify(syncdata, null, 2)], { type: 'application/json' })
+            )
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `BookmarkHub-${fileStamp(new Date())}.json`
+            // Firefox 要求节点在文档里，click() 才会真的触发下载
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            // 弹窗一关 blob 就失效，等下载接手之后再回收
+            setTimeout(() => URL.revokeObjectURL(url), 10_000)
+            setAlertMsg({ ok: true, text: `已导出 ${getBookmarkCount(syncdata.bookmarks)} 个书签，见浏览器下载内容` })
+        } catch (e) {
+            setAlertMsg({ ok: false, text: '导出失败：' + (e instanceof Error ? e.message : String(e)) })
+        } finally {
+            setExporting(false)
         }
     }
 
@@ -315,10 +351,17 @@ const Popup: React.FC = () => {
                             {spin('compare', <AiOutlineSwap />)}对比本地与远端
                         </Button>
 
-                        <button type="button" className="danger-link" disabled={!!busy} onClick={confirmRemoveAll}
-                            title="清空本地浏览器书签，请先做好备份">
-                            {spin('removeAll', <AiOutlineClear />)}清空本地书签
-                        </button>
+                        {/* 次要入口：导出、清空各占半行 */}
+                        <div className="minor-row">
+                            <button type="button" className="minor-link" disabled={!!busy || exporting} onClick={runExport}
+                                title="把本地书签存成 JSON 文件，内容与上传到代码片段的一致">
+                                {exporting ? <Spinner animation="border" size="sm" /> : <AiOutlineExport />}导出本地书签
+                            </button>
+                            <button type="button" className="minor-link danger-link" disabled={!!busy} onClick={confirmRemoveAll}
+                                title="清空本地浏览器书签，请先做好备份">
+                                {spin('removeAll', <AiOutlineClear />)}清空本地书签
+                            </button>
+                        </div>
                     </>
                 )}
             </div>
@@ -343,6 +386,12 @@ const Popup: React.FC = () => {
             {confirmModal()}
         </IconContext.Provider>
     )
+}
+
+/** 导出文件名用的本地时间戳 yyyyMMdd-HHmmss */
+function fileStamp(d: Date): string {
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
 }
 
 function successText(action: Action): string {
