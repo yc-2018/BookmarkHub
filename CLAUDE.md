@@ -151,6 +151,15 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 `webext-options-sync` 存储的两个细节，写测试直接读 storage 时会踩：配置经 lz-string `compressToEncodedURIComponent` 压缩成字符串存在 `storage.sync.options` 下；保存前剔除等于默认值的键，读取时再合并默认值。要拿完整对象走库的 `getAll()`，或自己解压后合并默认值。
 
+### 同时上传两个平台（`uploadBoth`）
+
+**上传可以写两个平台，下载与对比永远只读 `provider` 选中的那个。** 唯一的判定口径是 `setting.ts` 的 `uploadTargets()`：`uploadBoth` 为真且 `bothConfigured()` 为真时返回两个 id（所选平台在前），否则只返回所选平台。后台与弹窗都调它，不要在别处重算这个条件 —— 弹窗据此改确认框文案、同步页的说明行与上传按钮 title，后台据此决定写几次。
+
+- 平台不再是隐式的全局状态：`credentialsFor(setting, id)` / `createClient(setting, target?)` / `BookmarkService.update(data, target?)` 都显式带平台；`activeCredentials()` 与不传 `target` 时等价于所选平台。`BookmarkService.get()` 故意不收平台参数 —— 读取只有一个来源
+- **一个失败不中断另一个**：两边各是一份独立备份，逐个写完再汇总报告（`GitHub 上传成功，但 Gitee 码云 失败：…`）。`storage.local.remoteCount` 只在**所选平台**写成功时才更新，它代表下载与对比那一侧的数量
+- 另一个平台没配好就当开关没开（不报错、只写一个）：设置里的开关在 `!bothConfigured()` 时是 `disabled`，而弹窗的说明行与确认框只在真的要写两边时才出现，所以用户看到的永远是实际会发生的事。开关 `disabled` 时 `syncForm` 跳过它，存着的 `true` 不会被抹掉，补齐凭据后原样恢复
+- 「同时上传」与「出错弹系统通知」两个开关**并排放在一行**（`.switch-pair`）。设置页已到 584px，Chrome 弹窗上限 600px，各占一行就会出滚动条
+
 ### 对比逻辑
 
 `DiffResult.identical` 取自**两棵树的同步内容（`canonicalize`：只留 `title`/`url`/`children`，同级顺序不变，空 `children` 与缺席等价）是否相等**，而不是「各分类是否为空」。因为同步是整树覆盖，同步内容相等才真正等价于「同步是空操作」。
@@ -180,7 +189,7 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 - 弹窗是唯一主界面，分「同步」「设置」两个标签页，设置不再另开页面。`src/components/SettingsForm.tsx` 被弹窗标签页和独立设置页共用（后者保留是为了右键图标 →「选项」仍可用），样式在同目录的 `SettingsForm.css` 里，两边 import 同一份、不要复制规则
 - **设置面板用 CSS 隐藏而非卸载**。`syncForm` 持有的是 DOM 表单引用，标签页切换若卸载组件会让它失去表单；用 `d-none` 保持挂载，隐藏的字段仍会被保存逻辑读到（这也是非活动平台凭据组必须 `disabled` 的原因）
-- 弹窗固定 25rem（400px）宽。三个视图实测高度：同步 299px、设置 586px、对比 478px —— **Chrome 弹窗高度上限 600px**，新增内容时要留意别越过，否则会出现内部滚动条
+- 弹窗固定 25rem（400px）宽。三个视图实测高度（`#root` 的 `getBoundingClientRect().height`，body 无外边距，等于弹窗高度）：同步 299px（开了双平台上传多一行说明，319px）、设置 584px、对比 478px —— **Chrome 弹窗高度上限 600px**，新增内容时要留意别越过，否则会出现内部滚动条
 - **没有 i18n**。`_locales/` 和 `default_locale` 已全部移除，中文直接写在代码里。新增文案直接写中文，不要重新引入 `browser.i18n.getMessage`
 - 依赖停留在 Bootstrap 4 时代：`react-bootstrap@1` + `bootstrap@4`。用的是 v1 API（`InputGroup.Append`、`Badge variant`、`Button block`），不要混用 v2 写法
 - 设置页表单由 `optionsStorage.syncForm()` 直接操作 DOM 完成读写，字段只需带正确的 `name`，**不需要** react-hook-form 之类的表单库

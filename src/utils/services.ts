@@ -1,4 +1,4 @@
-import { Setting, activeCredentials, providerId, providerInfo } from './setting'
+import { Setting, ProviderId, credentialsFor, providerId, PROVIDERS } from './setting'
 import { createClient } from './http'
 
 /**
@@ -17,10 +17,10 @@ export function escapeAstralChars(json: string): string {
 }
 
 class BookmarkService {
-    /** 读取远端代码片段里约定文件名的内容，不存在时返回 null */
+    /** 读取远端代码片段里约定文件名的内容，不存在时返回 null。只读所选平台 */
     async get(): Promise<string | null> {
         const setting = await Setting.build()
-        const { gistID } = activeCredentials(setting)
+        const { gistID } = credentialsFor(setting, providerId(setting))
         const http = createClient(setting)
 
         const resp = await http.get(`gists/${gistID}`).json() as any
@@ -38,19 +38,20 @@ class BookmarkService {
         return null
     }
 
-    /** 写入远端代码片段 */
-    async update(data: { files: Record<string, { content: string }>; description: string }) {
+    /** 写入远端代码片段。不传 target 时写所选平台 */
+    async update(data: { files: Record<string, { content: string }>; description: string }, target?: ProviderId) {
         const setting = await Setting.build()
-        const { gistID } = activeCredentials(setting)
-        const info = providerInfo(setting)
-        const http = createClient(setting)
+        const id = target ?? providerId(setting)
+        const { gistID } = credentialsFor(setting, id)
+        const info = PROVIDERS[id]
+        const http = createClient(setting, id)
 
         let description = data.description
         if (info.descriptionMaxLength && description.length > info.descriptionMaxLength) {
             description = description.slice(0, info.descriptionMaxLength)
         }
 
-        if (providerId(setting) === 'gitee') {
+        if (id === 'gitee') {
             // Gitee 不收 emoji，先把文件内容里的 4 字节字符转义掉
             const files: Record<string, { content: string }> = {}
             for (const [name, file] of Object.entries(data.files)) {

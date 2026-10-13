@@ -1,6 +1,6 @@
 import BookmarkService from '../utils/services'
 import { HTTPError } from 'ky'
-import { Setting, activeCredentials, providerInfo, isValidToken, isValidSnippetId } from '../utils/setting'
+import { Setting, activeCredentials, providerInfo, providerId, isValidToken, isValidSnippetId, uploadTargets, PROVIDERS, ProviderId } from '../utils/setting'
 import iconLogo from '../assets/icon.png'
 import { OperType, BookmarkInfo, SyncDataInfo, RootBookmarksType, BrowserType } from '../utils/models'
 import { detectBrowserType, displayFolderName, formatBookmarks, getBookmarkCount } from '../utils/bookmarks'
@@ -157,23 +157,55 @@ export default defineBackground(() => {
   async function uploadBookmarks(): Promise<OperResult> {
     try {
       const setting = await requireGistConfig()
+      const targets = uploadTargets(setting)
       const bookmarks = await getBookmarks()
       const syncdata = new SyncDataInfo()
       syncdata.version = browser.runtime.getManifest().version
       syncdata.createDate = Date.now()
       syncdata.bookmarks = formatBookmarks(bookmarks)
       syncdata.browser = navigator.userAgent
-      await BookmarkService.update({
+      const payload = {
         files: {
           [setting.gistFileName]: {
             content: JSON.stringify(syncdata)
           }
         },
         description: setting.gistFileName
-      })
+      }
+
+      // 开了「同时上传」时逐个平台写入，所选平台在前（它是下载与对比的来源）。
+      // 一个失败不影响另一个：两边各是一份独立备份，中途收手只会让没写到的那个
+      // 停在旧数据上，不如都试一遍再如实报告谁成了谁没成。
+      const done: ProviderId[] = []
+      const failed: { id: ProviderId, reason: string }[] = []
+      for (const id of targets) {
+        try {
+          await BookmarkService.update(payload, id)
+          done.push(id)
+        } catch (error: any) {
+          console.error(error)
+          failed.push({ id, reason: await describeError(error) })
+        }
+      }
+
       const count = getBookmarkCount(syncdata.bookmarks)
-      await browser.storage.local.set({ remoteCount: count })
-      return { ok: true, remoteCount: count, localCount: count }
+      // 远端数量代表「下载与对比的来源」，只有所选平台写成功了才算数
+      if (done.includes(providerId(setting))) {
+        await browser.storage.local.set({ remoteCount: count })
+      }
+
+      if (failed.length === 0) {
+        return {
+          ok: true,
+          remoteCount: count,
+          localCount: count,
+          message: targets.length > 1 ? `上传成功，已写入 ${names(done)}` : undefined,
+        }
+      }
+      const reason = (done.length > 0 ? `${names(done)} 上传成功，但 ` : '')
+        + failed.map(f => `${PROVIDERS[f.id].name} 失败：${f.reason}`).join('；')
+      await notify("上传书签", `错误：${reason}`)
+      return { ok: false, error: reason, localCount: count }
     }
     catch (error: any) {
       console.error(error)
@@ -181,6 +213,11 @@ export default defineBackground(() => {
       await notify("上传书签", `错误：${reason}`)
       return { ok: false, error: reason }
     }
+  }
+
+  /** 平台名列表，拼进提示文案 */
+  function names(ids: ProviderId[]): string {
+    return ids.map(id => PROVIDERS[id].name).join('、')
   }
 
   /**

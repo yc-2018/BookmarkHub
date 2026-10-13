@@ -221,3 +221,19 @@
     font-size: 12px;
     padding-top: .1rem;
 }
+
+/* 两个开关并排，省下一行高度 —— 设置页已接近 Chrome 弹窗 600px 的上限 */
+.switch-pair {
+    display: flex;
+    gap: .9rem;
+}
+
+.switch-pair .custom-control-label {
+    white-space: nowrap;
+}
+
+/* 灰掉的开关要让人看出是不可用，而不是以为没生效 */
+.switch-pair .custom-control-input:disabled ~ .custom-control-label {
+    color: #adb5bd;
+    cursor: help;
+}

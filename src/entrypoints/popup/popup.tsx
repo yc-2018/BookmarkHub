@@ -14,7 +14,7 @@ import { BookmarkInfo, SyncDataInfo } from '../../utils/models'
 import { formatBookmarks, getBookmarkCount } from '../../utils/bookmarks'
 import { DiffResult } from '../../utils/diff'
 import { OperName, sendOper } from '../../utils/messages'
-import { Setting, isConfigured, providerId, providerInfo } from '../../utils/setting'
+import { Setting, isConfigured, providerId, providerInfo, uploadTargets, PROVIDERS } from '../../utils/setting'
 import { DiffPanel } from './DiffPanel'
 import { SettingsForm } from '../../components/SettingsForm'
 import { checkForUpdate } from '../../utils/update'
@@ -50,6 +50,8 @@ const Popup: React.FC = () => {
     // null = 还在读取配置，读完才知道该显示操作还是引导去设置
     const [configured, setConfigured] = useState<boolean | null>(null)
     const [platform, setPlatform] = useState({ name: 'GitHub', id: 'github' as ReturnType<typeof providerId> })
+    // 本次上传会写入的平台名；开了「同时上传」且两边都配好时才会是两个
+    const [targetNames, setTargetNames] = useState<string[]>([])
 
     // 配置随设置页即时变化，所以订阅 storage 而不是只读一次
     useEffect(() => {
@@ -59,6 +61,7 @@ const Popup: React.FC = () => {
                 const ok = isConfigured(s)
                 setConfigured(ok)
                 setPlatform({ name: providerInfo(s).name, id: providerId(s) })
+                setTargetNames(uploadTargets(s).map(id => PROVIDERS[id].name))
                 // 首次读取时若还没配置，直接落在设置页，省掉一次点击
                 if (first && !ok) setTab('settings')
                 first = false
@@ -101,7 +104,7 @@ const Popup: React.FC = () => {
             setComparing(false)
             setDiff(null)
             setRemoteBookmarks(undefined)
-            setAlertMsg({ ok: true, text: successText(action) })
+            setAlertMsg({ ok: true, text: res.message ?? successText(action) })
         } else {
             setAlertMsg({ ok: false, text: res.error ?? '操作失败' })
         }
@@ -173,17 +176,24 @@ const Popup: React.FC = () => {
         }
     }
 
+    // 开了「同时上传」且两边都配好时，上传要写两个平台 —— 确认框和提示文案都要说清
+    const dual = targetNames.length > 1
+
     const confirmUpload = (d?: DiffResult) => openConfirm({
         action: 'upload',
         title: '上传书签',
         variant: 'primary',
-        confirmLabel: '上传覆盖远端',
+        confirmLabel: dual ? '上传覆盖两边' : '上传覆盖远端',
         body: (
             <>
-                <p className="mb-2">将用<b>本地 {localCount ?? '未知'} 个</b>书签覆盖<b>远端 {d?.remoteCount ?? remoteCount ?? '未知'} 个</b>书签，远端现有数据会被整体替换。</p>
+                {dual ? (
+                    <p className="mb-2">将用<b>本地 {localCount ?? '未知'} 个</b>书签同时覆盖 <b>{targetNames.join(' 和 ')}</b>，两边远端现有数据都会被整体替换。</p>
+                ) : (
+                    <p className="mb-2">将用<b>本地 {localCount ?? '未知'} 个</b>书签覆盖<b>远端 {d?.remoteCount ?? remoteCount ?? '未知'} 个</b>书签，远端现有数据会被整体替换。</p>
+                )}
                 {d && !d.identical && (
                     <p className="mb-0 text-muted small">
-                        远端将新增 {d.localOnly.length + d.folderLocalOnly.length} 项、
+                        {dual && `与 ${platform.name} 相比，`}远端将新增 {d.localOnly.length + d.folderLocalOnly.length} 项、
                         丢失 {d.remoteOnly.length + d.folderRemoteOnly.length} 项。
                     </p>
                 )}
@@ -337,7 +347,7 @@ const Popup: React.FC = () => {
 
                         <div className="action-row">
                             <Button variant="primary" size="sm" disabled={!!busy} onClick={() => confirmUpload()}
-                                title="把本地书签全部上传，覆盖远端">
+                                title={dual ? `把本地书签全部上传，同时覆盖 ${targetNames.join(' 和 ')}` : '把本地书签全部上传，覆盖远端'}>
                                 {spin('upload', <AiOutlineCloudUpload />)}上传书签
                             </Button>
                             <Button variant="outline-primary" size="sm" disabled={!!busy} onClick={() => confirmDownload()}
@@ -350,6 +360,13 @@ const Popup: React.FC = () => {
                             title="拉取远端书签与本地比对，列出差异后再决定同步方向">
                             {spin('compare', <AiOutlineSwap />)}对比本地与远端
                         </Button>
+
+                        {/* 双平台上传是个容易忘的开关，在这儿明说，免得以为下载也走两边 */}
+                        {dual && (
+                            <div className="sync-note">
+                                上传会同时写入 {targetNames.join(' 和 ')}；下载与对比只用 {platform.name}。
+                            </div>
+                        )}
 
                         {/* 次要入口：导出、清空各占半行 */}
                         <div className="minor-row">

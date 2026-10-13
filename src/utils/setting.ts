@@ -55,6 +55,9 @@ export const PROVIDERS: Record<ProviderId, {
     },
 }
 
+/** 平台顺序：设置页的单选卡与「同时上传」的遍历都用这一份 */
+export const PROVIDER_IDS: ProviderId[] = ['github', 'gitee']
+
 export class SettingBase implements Options {
     constructor() { }
     [key: string]: string | number | boolean;
@@ -65,6 +68,8 @@ export class SettingBase implements Options {
     giteeGistID: string = '';
     gistFileName: string = 'BookmarkHub';
     enableNotify: boolean = true;
+    /** 上传时同时写入两个平台（只在两边都配置齐全时生效，下载与对比仍只用所选平台） */
+    uploadBoth: boolean = false;
     githubURL: string = 'https://api.github.com';
 }
 
@@ -80,6 +85,7 @@ export class Setting extends SettingBase {
         setting.gistFileName = options.gistFileName;
         setting.githubToken = options.githubToken;
         setting.enableNotify = options.enableNotify;
+        setting.uploadBoth = options.uploadBoth;
         return setting;
     }
 }
@@ -93,15 +99,20 @@ export function providerInfo(setting: SettingBase) {
 }
 
 /**
- * 取出当前所选平台对应的那组凭据。
+ * 取出指定平台的那组凭据。
  * 统一去掉首尾空白：从地址栏复制片段 ID 常带换行或空格，不处理的话
  * "  " 会被当成已填写、API 请求也会因 ID 不匹配而 404。
  */
-export function activeCredentials(setting: SettingBase): { token: string; gistID: string } {
-    const raw = providerId(setting) === 'gitee'
+export function credentialsFor(setting: SettingBase, id: ProviderId): { token: string; gistID: string } {
+    const raw = id === 'gitee'
         ? { token: setting.giteeToken, gistID: setting.giteeGistID }
         : { token: setting.githubToken, gistID: setting.gistID }
     return { token: String(raw.token ?? '').trim(), gistID: String(raw.gistID ?? '').trim() }
+}
+
+/** 取出当前所选平台（下载与对比的数据来源）的那组凭据 */
+export function activeCredentials(setting: SettingBase): { token: string; gistID: string } {
+    return credentialsFor(setting, providerId(setting))
 }
 
 /**
@@ -121,8 +132,32 @@ const SNIPPET_ID_RE = new RegExp('^' + SNIPPET_ID_PATTERN + '$')
 export const isValidToken = (s: string) => TOKEN_RE.test(s)
 export const isValidSnippetId = (s: string) => SNIPPET_ID_RE.test(s)
 
+/** 指定平台是否已配置齐全且格式正确 */
+export function isConfiguredFor(setting: SettingBase, id: ProviderId): boolean {
+    const { token, gistID } = credentialsFor(setting, id)
+    return isValidToken(token) && isValidSnippetId(gistID) && !!setting.gistFileName
+}
+
 /** 当前所选平台是否已配置齐全且格式正确 */
 export function isConfigured(setting: SettingBase): boolean {
-    const { token, gistID } = activeCredentials(setting)
-    return isValidToken(token) && isValidSnippetId(gistID) && !!setting.gistFileName
+    return isConfiguredFor(setting, providerId(setting))
+}
+
+/** 两个平台都配置齐全了 —— 「同时上传」开关只有这时才有意义 */
+export function bothConfigured(setting: SettingBase): boolean {
+    return PROVIDER_IDS.every(id => isConfiguredFor(setting, id))
+}
+
+/**
+ * 本次上传要写入哪些平台。
+ * 开了「同时上传」且两边都配置齐全时写两个，所选平台排在前面 —— 它是下载与对比的
+ * 来源，先把它写完，另一个平台慢或超时都不会推迟它。否则只写所选平台。
+ * 另一个平台没配好就当开关没开：设置里的开关这时是灰的，用户看得到原因。
+ */
+export function uploadTargets(setting: SettingBase): ProviderId[] {
+    const active = providerId(setting)
+    if (!setting.uploadBoth || !bothConfigured(setting)) {
+        return [active]
+    }
+    return [active, ...PROVIDER_IDS.filter(id => id !== active)]
 }

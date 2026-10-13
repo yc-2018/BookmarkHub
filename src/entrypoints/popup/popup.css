@@ -201,6 +201,14 @@
     margin-bottom: .25rem;
 }
 
+/* 双平台上传时的说明，紧跟在操作按钮下面 */
+.sync-note {
+    font-size: 10.5px;
+    color: #6c757d;
+    line-height: 1.5;
+    padding: .3rem .1rem 0;
+}
+
 /* 次要入口：导出 / 清空，各占半行 */
 .minor-row {
     display: flex;

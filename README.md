@@ -34,6 +34,7 @@ A browser extension. One click uploads your local bookmarks to a remote store; o
 ## Features
 
 - **Gitee support** for users who cannot reach GitHub reliably. Credentials for both platforms are stored separately and can be switched at any time
+- **Mirror to both platforms**: once both are configured, turn on「上传写入两个平台」in the settings and a single upload writes to GitHub and Gitee at once; download and compare still read only from the platform you selected
 - **Compare before you sync**: fetches the remote tree, diffs it against local bookmarks, and groups the differences (local-only, remote-only, moved, retitled, reordered, folder changes) so you can choose the direction with full information
 - **Confirmation for every destructive step**: upload, download and clear each show a dialog spelling out what will be overwritten
 - Settings live inside the popup; a first launch opens straight into configuration

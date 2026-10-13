@@ -7,6 +7,8 @@ export type OperName = 'upload' | 'download' | 'removeAll' | 'compare'
 export interface OperResult {
     ok: boolean
     error?: string
+    /** 成功时的自定义文案（比如上传写入了两个平台），缺省则由弹窗按操作给默认文案 */
+    message?: string
     localCount?: number
     remoteCount?: number
     diff?: DiffResult

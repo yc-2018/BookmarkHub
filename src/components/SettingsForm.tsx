@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Form, Button, InputGroup, Badge, Collapse } from 'react-bootstrap'
 import { AiOutlineGithub, AiOutlineCloud, AiOutlineQuestionCircle, AiOutlineCheck } from 'react-icons/ai'
 import optionsStorage from '../utils/optionsStorage'
-import { PROVIDERS, ProviderId, TOKEN_PATTERN, SNIPPET_ID_PATTERN } from '../utils/setting'
+import { PROVIDERS, PROVIDER_IDS, ProviderId, TOKEN_PATTERN, SNIPPET_ID_PATTERN, Setting, bothConfigured, providerId } from '../utils/setting'
 import './SettingsForm.css'
 
-const PROVIDER_IDS: ProviderId[] = ['github', 'gitee']
 /** 需要做格式校验与首尾空白裁剪的字段 */
 const CREDENTIAL_FIELDS = new Set(['githubToken', 'gistID', 'giteeToken', 'giteeGistID'])
 
@@ -86,6 +85,8 @@ const CredentialFields: React.FC<{ id: ProviderId; active: boolean }> = ({ id, a
 export const SettingsForm: React.FC = () => {
     const [saved, setSaved] = useState(false)
     const [provider, setProvider] = useState<ProviderId>('github')
+    // 两边都配置齐全了才让「同时上传」可开 —— 另一个平台没凭据，开了也只能写一个
+    const [bothReady, setBothReady] = useState(false)
     const savedTimer = useRef<number | undefined>(undefined)
     const groupRef = useRef<HTMLDivElement>(null)
 
@@ -95,8 +96,9 @@ export const SettingsForm: React.FC = () => {
 
         // 平台选择要驱动界面切换，所以把它镜像进 React 状态：
         // 初始读一次；之后 storage 有变化（syncForm 回写、别的窗口改了）也跟着更新
-        const mirror = () => optionsStorage.getAll().then(o => {
-            setProvider(o.provider === 'gitee' ? 'gitee' : 'github')
+        const mirror = () => Setting.build().then(s => {
+            setProvider(providerId(s))
+            setBothReady(bothConfigured(s))
         })
         mirror()
         const onStorage = (_changes: unknown, area: string) => { if (area === 'sync') mirror() }
@@ -204,8 +206,16 @@ export const SettingsForm: React.FC = () => {
             <div className="settings-section">
                 <span className="settings-section-title">其他</span>
             </div>
-            <div className="switch-row">
-                <Form.Check id="enableNotify" name="enableNotify" type="switch" label="同步出错时弹系统通知" />
+            <div className="switch-row switch-pair">
+                <span title="同步出错时弹一条系统通知，关掉后只在弹窗里提示">
+                    <Form.Check id="enableNotify" name="enableNotify" type="switch" label="出错弹系统通知" />
+                </span>
+                <span title={bothReady
+                    ? '上传时把同一份书签同时写入 GitHub 和 Gitee；下载与对比仍只用上面所选的平台'
+                    : '两个平台的访问令牌和代码片段 ID 都填好后才能开启'}>
+                    <Form.Check id="uploadBoth" name="uploadBoth" type="switch" label="上传写入两个平台"
+                        disabled={!bothReady} />
+                </span>
             </div>
         </Form>
     )

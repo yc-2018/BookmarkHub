@@ -12,6 +12,8 @@ export default new OptionsSync({
         // 文件名两个平台共用
         gistFileName: 'BookmarkHub',
         enableNotify: true,
+        // 上传时同时写入两个平台；下载与对比仍只用 provider 所选的那个
+        uploadBoth: false,
         githubURL: 'https://api.github.com',
     },
 
