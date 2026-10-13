@@ -33,16 +33,38 @@ export function compareVersions(a: string, b: string): number {
     return 0
 }
 
+/**
+ * 把失败响应翻成人话。匿名接口的 403/429 基本都是限流：额度按出口 IP 计
+ * （每小时 60 次），代理、VPN、校园网共用出口时会被别人用光 —— 2026-10-13
+ * 有用户报「检查更新失败：GitHub 返回 403」，而同一时刻另一条线路还剩 59 次，
+ * 就是这种情况。限流时 x-ratelimit-remaining 为 0、响应体的 message 也会点明；
+ * 两者都没有的 403 多半来自网络中间层（代理/防火墙），把原始 message 带出来。
+ */
+async function describeFailure(res: Response): Promise<string> {
+    if (res.status !== 403 && res.status !== 429) return `GitHub 返回 ${res.status}`
+    const remaining = res.headers.get('x-ratelimit-remaining')
+    let message = ''
+    try {
+        message = ((await res.json()) as { message?: string }).message ?? ''
+    } catch { /* 响应体不是 JSON，忽略 */ }
+    if (remaining === '0' || /rate limit/i.test(message)) {
+        const reset = Number(res.headers.get('x-ratelimit-reset')) * 1000
+        const wait = reset > Date.now() ? Math.ceil((reset - Date.now()) / 60000) : 0
+        return `GitHub 匿名接口限流（额度按出口 IP 计、每小时 60 次）${wait ? `，约 ${wait} 分钟后恢复` : ''}。代理或共用网络容易被别人用光，请稍后重试或换网络`
+    }
+    return `GitHub 返回 ${res.status}${message ? `：${message}` : '，响应里没有限流标记，可能被代理或防火墙拦截'}`
+}
+
 export async function checkForUpdate(): Promise<UpdateInfo> {
     const current = browser.runtime.getManifest().version
     let res: Response
     try {
-        // 匿名调用每小时 60 次，手动点击远用不完；host_permissions 的 *.github.com 已覆盖 api 子域
+        // 匿名调用每 IP 每小时 60 次，手动点击一般用不完；host_permissions 的 *.github.com 已覆盖 api 子域
         res = await fetch(LATEST_API, { headers: { Accept: 'application/vnd.github+json' } })
     } catch {
         throw new Error('网络请求失败，请检查能否访问 GitHub')
     }
-    if (!res.ok) throw new Error(`GitHub 返回 ${res.status}`)
+    if (!res.ok) throw new Error(await describeFailure(res))
     const data = await res.json() as { tag_name?: string; html_url?: string }
     const latest = String(data.tag_name ?? '').replace(/^v/i, '')
     if (!latest) throw new Error('没有读到版本号')
