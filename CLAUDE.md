@@ -100,7 +100,12 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 - **`import` 不写 `remoteCount`**：那个数代表「下载与对比那一侧」的数量，从本地文件导入与远端无关。除此之外它和 `download` 完全同路（`restoreBookmarks`），根目录缺失检查也一样
 - **书签预览页**（`src/entrypoints/manager/`，页脚「书签预览」在新标签页打开 `manager.html`）：只读写文件内容，**绝不碰浏览器真实书签** —— 覆盖本地这一步永远只发生在弹窗的「导入本地书签」里，确认框也在那儿。页面自己的「导入/导出」只是换文件
   - `tree.ts` 是工作副本的模型：节点带 `uid` 用于定位，导出时 `toPlain` 剥掉。**字段名故意不叫 `id`**：`BookmarkInfo.id` 是 `string`，重名会让 `Node[]` 不能直接喂给 `getBookmarkCount` 这类收 `BookmarkInfo[]` 的公共函数
-  - **根分类不许改名或删除**（`ListPane` 的 `locked`）：那几个标识名是在线格式的一部分，改了导入时 `rootParentId()` 认不出来，整棵子树会落到默认文件夹里
+  - **根分类不许改名、删除或剪切**（`ListPane` 的 `rootLevel` → 菜单的 `locked`）：那几个标识名是在线格式的一部分，改了导入时 `rootParentId()` 认不出来，整棵子树会落到默认文件夹里。粘贴进根分类是允许的
+  - 导入后默认选中「书签栏」（`defaultFolder()`）而不是最外层 —— 最外层只有几个根分类壳子
+  - **拖放判定只看 `e.dataTransfer.types`，不看 React 状态**：`dragstart` 里 `setDragUid` 引发的状态更新未必赶在第一次 `dragover` 之前落地（合成事件同任务连发时必然赶不上），拿 `dragUid === null` 当「没在拖」会让整个落点失效。`dragUid` / `dragNode` 只用于视觉高亮和自我排除，真正拦「文件夹拖进自己子孙」的守卫在 `moveNode` 里（它拿得到整棵树）。`moveNode` 先摘后插，所以**落点必须在摘掉之后再定位**，否则下标错位；定位失败要把节点放回原位，别弄丢
+  - 拖拽反馈：`setDragImage` 配一个 `.mg-drag-pill`（必须先挂进文档才截得到图，所以用 `position:fixed` 挪到视口外，下一拍再移除）；插入线用 inset 阴影画，不占位、行高不跳。文件夹行中间 30%~70% 是「放进去」，上下两端是「插到前后」
+  - 行尾 ⋮ 与右键**共用一份菜单**（`ContextMenu.tsx`，固定定位，否则会被可滚动容器裁掉）。右键先 `mousedown` 再 `contextmenu`，所以「关旧菜单 + 开新菜单」会在同一批 setState 里结算，不会双开或全关 —— 已实测
+  - 剪贴板是页面内的 `clip` 状态：`cutFrom` 非空表示剪切，粘贴时先摘原件再定位落点；剪切后原件不在了就退回当前文件夹，不静默丢数据。粘贴出来的子树要 `reuid()` 重新发号，否则 uid 撞车、定位会打架
   - 「有未导出的修改」才显示右上角那个醒目的导出按钮，同时挂 `beforeunload` 拦一道；顶部 ⋮ 菜单里的「导出书签」则一直可用
 
 ### 工具层（`src/utils/`）

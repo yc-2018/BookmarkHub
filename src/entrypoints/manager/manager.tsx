@@ -1,16 +1,20 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import {
-    AiOutlineCheckCircle, AiOutlineExclamationCircle, AiOutlineExport, AiOutlineFolderAdd,
-    AiOutlineImport, AiOutlineInbox, AiOutlineMore, AiOutlinePlus, AiOutlineSearch,
-    AiOutlineSortAscending, AiOutlineStar
+    AiOutlineCheckCircle, AiOutlineClose, AiOutlineExclamationCircle, AiOutlineExport,
+    AiOutlineFolderAdd, AiOutlineImport, AiOutlineInbox, AiOutlineMore, AiOutlinePlus,
+    AiOutlineSearch, AiOutlineSortAscending, AiOutlineStar
 } from 'react-icons/ai'
 import './manager.css'
 import { getBookmarkCount } from '../../utils/bookmarks'
 import { buildSyncData, downloadJson, fileStamp, parseBookmarkFile, pickJsonFile } from '../../utils/bookmarkFile'
-import { Node, label, locate, nextUid, pathTo, search, sortByName, toNodes, toPlain } from './tree'
+import {
+    Node, collectUrls, contains, defaultFolder, label, locate, nextUid, pathTo, reuid,
+    search, sortByName, toNodes, toPlain
+} from './tree'
 import { Sidebar } from './Sidebar'
-import { ListPane } from './ListPane'
+import { DropWhere, ListPane } from './ListPane'
+import { ContextMenu, MenuAction, MenuSpec } from './ContextMenu'
 import { DialogSpec, EditDialog } from './EditDialog'
 
 const VERSION = browser.runtime.getManifest().version
@@ -31,8 +35,14 @@ const Manager: React.FC = () => {
     const [query, setQuery] = useState('')
     const [dialog, setDialog] = useState<DialogSpec | null>(null)
     const [topMenu, setTopMenu] = useState(false)
+    // 行尾 ⋮ 与右键共用这一份菜单状态
+    const [menu, setMenu] = useState<MenuSpec | null>(null)
+    // 剪贴板：cutFrom 非空表示是「剪切」，粘贴时要把原件摘掉
+    const [clip, setClip] = useState<{ node: Node, cutFrom: number | null } | null>(null)
+    const [dragUid, setDragUid] = useState<number | null>(null)
     const [dragOver, setDragOver] = useState(false)
     const [toast, setToast] = useState<{ ok: boolean, text: string } | null>(null)
+    const searchBox = useRef<HTMLInputElement>(null)
 
     const say = useCallback((ok: boolean, text: string) => {
         setToast({ ok, text })
@@ -64,10 +74,12 @@ const Manager: React.FC = () => {
             const tree = toNodes(parsed.bookmarks, true)
             setRoots(tree)
             setFileName(name)
-            setSelected(null)
+            // 默认落在「书签栏」而不是最外层：书签基本都在那儿
+            setSelected(defaultFolder(tree))
             setExpanded(new Set(tree.map(n => n.uid)))
             setDirty(false)
             setQuery('')
+            setClip(null)
             say(true, `已载入 ${name}，共 ${getBookmarkCount(tree)} 个书签`)
         } catch (e) {
             say(false, e instanceof Error ? e.message : String(e))
@@ -190,18 +202,129 @@ const Manager: React.FC = () => {
         })
     }
 
-    const move = (uid: number, delta: number) => mutate(draft => {
-        const found = locate(draft, uid)
-        if (!found) {
+    /**
+     * 拖放移动：from 挪到 target 的前/后，或放进 target 文件夹里。
+     * 先摘后插，所以落点必须在摘掉之后再定位，否则下标会错。
+     */
+    const moveNode = (from: number, target: number, where: DropWhere) => {
+        if (from === target) {
             return
         }
-        const to = found.index + delta
-        if (to < 0 || to >= found.siblings.length) {
+        mutate(draft => {
+            const src = locate(draft, from)
+            if (!src) {
+                return
+            }
+            const dragged = src.node
+            // 文件夹不能拖进自己的子孙里，那样这棵子树就从树上掉了
+            if (!dragged.url && contains(dragged, target)) {
+                return
+            }
+            src.siblings.splice(src.index, 1)
+            const dst = locate(draft, target)
+            if (!dst) {
+                src.siblings.splice(src.index, 0, dragged)   // 落点没了就放回原位，别把节点弄丢
+                return
+            }
+            if (where === 'into' && !dst.node.url) {
+                (dst.node.children ??= []).push(dragged)
+            } else {
+                dst.siblings.splice(dst.index + (where === 'after' ? 1 : 0), 0, dragged)
+            }
+        })
+    }
+
+    /** 拖到左侧目录树上：放进那个文件夹，并提示去哪儿了（它会从当前列表里消失） */
+    const moveIntoFolder = (from: number, target: number) => {
+        if (!roots) {
             return
         }
-        const [it] = found.siblings.splice(found.index, 1)
-        found.siblings.splice(to, 0, it)
-    })
+        const src = locate(roots, from)?.node
+        const dest = locate(roots, target)?.node
+        if (!src || !dest) {
+            return
+        }
+        if (!src.url && contains(src, target)) {
+            say(false, '不能把文件夹放进它自己里面')
+            return
+        }
+        moveNode(from, target, 'into')
+        say(true, `已移动到「${label(dest, roots.some(r => r.uid === target))}」`)
+    }
+
+    /** 粘贴：文件夹就放进去，书签就插在它后面 */
+    const paste = (target: Node) => {
+        if (!clip) {
+            return
+        }
+        const fresh = reuid(clip.node)
+        mutate(draft => {
+            if (clip.cutFrom != null) {
+                const src = locate(draft, clip.cutFrom)
+                if (src) {
+                    src.siblings.splice(src.index, 1)
+                }
+            }
+            const found = locate(draft, target.uid)
+            if (!found) {
+                // 目标正是刚被剪走的那棵子树（剪了又粘回自己里），退回当前文件夹
+                const list = selected === null ? draft : locate(draft, selected)?.node.children
+                list?.push(fresh)
+                return
+            }
+            if (found.node.url) {
+                found.siblings.splice(found.index + 1, 0, fresh)
+            } else {
+                (found.node.children ??= []).push(fresh)
+            }
+        })
+        if (clip.cutFrom != null) {
+            setClip(null)   // 剪切是一次性的，粘完就空
+        }
+    }
+
+    const openAll = (node: Node) => {
+        const urls = collectUrls(node)
+        if (urls.length === 0) {
+            return
+        }
+        if (urls.length > 10 && !window.confirm(`要打开 ${urls.length} 个标签页吗？`)) {
+            return
+        }
+        urls.forEach((url, i) => browser.tabs.create({ url, active: i === 0 }))
+    }
+
+    /** 行尾 ⋮ 与右键菜单共用这一套动作 */
+    const runMenuAction = (node: Node, a: MenuAction) => {
+        switch (a) {
+            case 'edit':
+                setDialog({ mode: 'edit', uid: node.uid, title: node.title, url: node.url })
+                break
+            case 'delete':
+                del(node)
+                break
+            case 'cut':
+                setClip({ node: structuredClone(node), cutFrom: node.uid })
+                say(true, `已剪切「${node.title || node.url}」，到目标文件夹上右键「粘贴」`)
+                break
+            case 'copy':
+                setClip({ node: structuredClone(node), cutFrom: null })
+                say(true, `已复制「${node.title || node.url}」，到目标文件夹上右键「粘贴」`)
+                break
+            case 'paste':
+                paste(node)
+                break
+            case 'open':
+                browser.tabs.create({ url: node.url })
+                break
+            case 'openWindow':
+                browser.windows.create({ url: node.url })
+                break
+            case 'openAll':
+                openAll(node)
+                break
+        }
+    }
 
     const applyDialog = (title: string, url?: string) => {
         if (!dialog) {
@@ -248,7 +371,19 @@ const Manager: React.FC = () => {
 
                 <div className="mg-search">
                     <AiOutlineSearch />
-                    <input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索书签" />
+                    <input
+                        ref={searchBox}
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
+                        placeholder="搜索书签"
+                    />
+                    {query && (
+                        <button type="button" className="mg-search-clear" title="清除搜索（Esc）"
+                            onClick={() => { setQuery(''); searchBox.current?.focus() }}>
+                            <AiOutlineClose />
+                        </button>
+                    )}
                 </div>
 
                 <div className="mg-head-right">
@@ -308,6 +443,9 @@ const Manager: React.FC = () => {
                         next.has(uid) ? next.delete(uid) : next.add(uid)
                         return next
                     })}
+                    onMenu={(node, x, y) => setMenu({ node, x, y, locked: roots.some(r => r.uid === node.uid) })}
+                    dragNode={dragUid === null ? null : locate(roots, dragUid)?.node ?? null}
+                    onMove={moveIntoFolder}
                 />
                 <div className="mg-main">
                     <div className="mg-crumb">
@@ -332,13 +470,23 @@ const Manager: React.FC = () => {
                         hits={hits}
                         rootLevel={rootLevel}
                         onOpenFolder={openFolder}
-                        onEdit={node => setDialog({ mode: 'edit', uid: node.uid, title: node.title, url: node.url })}
-                        onDelete={del}
-                        onMove={move}
+                        onMenu={(node, x, y) => setMenu({ node, x, y, locked: rootLevel })}
+                        dragUid={dragUid}
+                        onDragStart={setDragUid}
+                        onDragEnd={() => setDragUid(null)}
+                        onMove={moveNode}
                     />
                 </div>
             </div>
 
+            {menu && (
+                <ContextMenu
+                    spec={menu}
+                    canPaste={!!clip}
+                    onClose={() => setMenu(null)}
+                    onAction={a => runMenuAction(menu.node, a)}
+                />
+            )}
             {dialog && <EditDialog spec={dialog} onCancel={() => setDialog(null)} onSubmit={applyDialog} />}
             {toastView(toast)}
         </div>

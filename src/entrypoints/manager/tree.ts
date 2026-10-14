@@ -1,4 +1,4 @@
-import { BookmarkInfo } from '../../utils/models'
+import { BookmarkInfo, RootBookmarksType } from '../../utils/models'
 import { displayFolderName } from '../../utils/bookmarks'
 
 /**
@@ -34,6 +34,41 @@ export function toPlain(list: Node[]): BookmarkInfo[] {
 
 /** 新建节点用的 uid */
 export const nextUid = () => ++seq
+
+/** 整棵子树重新发号 —— 复制粘贴出来的节点必须有自己的 uid，否则定位会打架 */
+export function reuid(node: Node): Node {
+    return node.url
+        ? { uid: nextUid(), title: node.title, url: node.url }
+        : { uid: nextUid(), title: node.title, children: (node.children ?? []).map(reuid) }
+}
+
+/** uid 是否在这棵子树里（含自身）—— 拦住「把文件夹拖进自己的子孙」 */
+export function contains(node: Node, uid: number): boolean {
+    if (node.uid === uid) {
+        return true
+    }
+    return (node.children ?? []).some(c => contains(c, uid))
+}
+
+/** 子树里所有网址，按树序。「打开全部网址」用 */
+export function collectUrls(node: Node, out: string[] = []): string[] {
+    if (node.url) {
+        out.push(node.url)
+    }
+    for (const c of node.children ?? []) {
+        collectUrls(c, out)
+    }
+    return out
+}
+
+/**
+ * 导入后默认选中的文件夹：优先「书签栏」。
+ * 最外层那层只有几个根分类壳子，落在那儿用户还得多点一下。
+ */
+export function defaultFolder(roots: Node[]): number | null {
+    const toolbar = roots.find(n => !n.url && n.title === RootBookmarksType.ToolbarFolder)
+    return (toolbar ?? roots.find(n => !n.url))?.uid ?? null
+}
 
 export interface Found {
     node: Node
