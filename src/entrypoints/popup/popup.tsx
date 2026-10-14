@@ -6,12 +6,14 @@ import {
     AiOutlineCloudUpload, AiOutlineCloudDownload,
     AiOutlineSetting, AiOutlineClear, AiOutlineSwap,
     AiOutlineGithub, AiOutlineArrowLeft, AiOutlineCloud,
-    AiOutlineQuestionCircle, AiOutlineSync, AiOutlineExport
+    AiOutlineQuestionCircle, AiOutlineSync, AiOutlineExport,
+    AiOutlineImport
 } from 'react-icons/ai'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './popup.css'
-import { BookmarkInfo, SyncDataInfo } from '../../utils/models'
+import { BookmarkInfo } from '../../utils/models'
 import { formatBookmarks, getBookmarkCount } from '../../utils/bookmarks'
+import { buildSyncData, downloadJson, fileStamp, parseBookmarkFile, pickJsonFile } from '../../utils/bookmarkFile'
 import { DiffResult } from '../../utils/diff'
 import { OperName, sendOper } from '../../utils/messages'
 import { Setting, isConfigured, providerId, providerInfo, uploadTargets, PROVIDERS } from '../../utils/setting'
@@ -19,7 +21,7 @@ import { DiffPanel } from './DiffPanel'
 import { SettingsForm } from '../../components/SettingsForm'
 import { checkForUpdate } from '../../utils/update'
 
-type Action = 'upload' | 'download' | 'removeAll'
+type Action = 'upload' | 'download' | 'removeAll' | 'import'
 type Tab = 'sync' | 'settings'
 
 /** 当前安装版本；manifest 的 version 由 package.json 生成 */
@@ -43,6 +45,9 @@ const Popup: React.FC = () => {
     const [alertMsg, setAlertMsg] = useState<{ ok: boolean; text: string; link?: { href: string; label: string } } | null>(null)
     const [checkingUpdate, setCheckingUpdate] = useState(false)
     const [exporting, setExporting] = useState(false)
+    // 读文件阶段（还没确认），确认后才真正交给后台覆盖本地书签
+    const [importing, setImporting] = useState(false)
+    const [importFile, setImportFile] = useState<{ name: string, bookmarks: BookmarkInfo[] } | null>(null)
     const [diff, setDiff] = useState<DiffResult | null>(null)
     const [remoteBookmarks, setRemoteBookmarks] = useState<BookmarkInfo[] | undefined>(undefined)
     const [localCount, setLocalCount] = useState<number | null>(null)
@@ -96,9 +101,11 @@ const Popup: React.FC = () => {
         const res = await sendOper({
             name: action,
             remoteBookmarks: action === 'download' && useFetchedRemote ? remoteBookmarks : undefined,
+            bookmarks: action === 'import' ? importFile?.bookmarks : undefined,
         })
         setBusy(null)
         setConfirm(null)
+        setImportFile(null)
         await refreshCounts()
         if (res.ok) {
             setComparing(false)
@@ -128,36 +135,69 @@ const Popup: React.FC = () => {
     /**
      * 导出本地书签成 JSON 文件。
      * 内容与上传到代码片段的完全一致（同一套归一化 + SyncDataInfo），
-     * 所以导出的文件既是备份，也能直接贴回片段里。全程在本地完成，不碰网络。
+     * 所以导出的文件既是备份，也能直接贴回片段里，还能拖进「书签预览」页里改。
+     * 全程在本地完成，不碰网络。
      */
     const runExport = async () => {
         setAlertMsg(null)
         setExporting(true)
         try {
             const tree = await browser.bookmarks.getTree() as BookmarkInfo[]
-            const syncdata = new SyncDataInfo()
-            syncdata.version = VERSION
-            syncdata.createDate = Date.now()
-            syncdata.browser = navigator.userAgent
-            syncdata.bookmarks = formatBookmarks(tree)
-            const url = URL.createObjectURL(
-                new Blob([JSON.stringify(syncdata, null, 2)], { type: 'application/json' })
-            )
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `BookmarkHub-${fileStamp(new Date())}.json`
-            // Firefox 要求节点在文档里，click() 才会真的触发下载
-            document.body.appendChild(a)
-            a.click()
-            a.remove()
-            // 弹窗一关 blob 就失效，等下载接手之后再回收
-            setTimeout(() => URL.revokeObjectURL(url), 10_000)
+            const syncdata = buildSyncData(formatBookmarks(tree), VERSION)
+            downloadJson(`BookmarkHub-${fileStamp()}.json`, JSON.stringify(syncdata, null, 2))
             setAlertMsg({ ok: true, text: `已导出 ${getBookmarkCount(syncdata.bookmarks)} 个书签，见浏览器下载内容` })
         } catch (e) {
             setAlertMsg({ ok: false, text: '导出失败：' + (e instanceof Error ? e.message : String(e)) })
         } finally {
             setExporting(false)
         }
+    }
+
+    /**
+     * 导入 JSON 文件覆盖本地书签 —— 导出的反操作，整树替换而不是合并。
+     * 文件在这里读（service worker 里没有 FileReader），解析成功后先弹确认框说清后果，
+     * 真正的「清空 + 建树」交给后台，与下载走同一条路径（根目录缺失检查也一样）。
+     */
+    const runImport = async () => {
+        setAlertMsg(null)
+        setImporting(true)
+        try {
+            const picked = await pickJsonFile()
+            if (!picked) {
+                return
+            }
+            const parsed = parseBookmarkFile(picked.text)
+            const count = getBookmarkCount(parsed.bookmarks)
+            setImportFile({ name: picked.name, bookmarks: parsed.bookmarks })
+            openConfirm({
+                action: 'import',
+                title: '导入本地书签',
+                variant: 'danger',
+                confirmLabel: '导入覆盖本地',
+                body: (
+                    <>
+                        <p className="mb-2">
+                            将清空<b>本地 {localCount ?? '未知'} 个</b>书签，再用文件里的<b>{count} 个</b>重建
+                            —— <b>现在的本地数据会被整体覆盖</b>，此操作不可撤销。
+                        </p>
+                        <p className="mb-0 text-muted small">
+                            文件：{picked.name}
+                            {parsed.createDate ? `（导出于 ${new Date(parsed.createDate).toLocaleString()}）` : ''}
+                            <br />远端数据不受影响。建议先「导出本地书签」留一份备份。
+                        </p>
+                    </>
+                ),
+            })
+        } catch (e) {
+            setAlertMsg({ ok: false, text: '导入失败：' + (e instanceof Error ? e.message : String(e)) })
+        } finally {
+            setImporting(false)
+        }
+    }
+
+    /** 书签预览页：独立标签页里打开，只看 / 改导出的文件，不碰浏览器书签 */
+    const openPreview = () => {
+        browser.tabs.create({ url: browser.runtime.getURL('/manager.html') })
     }
 
     // 手动检查更新：结果复用顶部提示条，有新版时附上发行页链接
@@ -268,14 +308,15 @@ const Popup: React.FC = () => {
     }
 
     function confirmModal() {
+        const close = () => { if (!busy) { setConfirm(null); setImportFile(null) } }
         return (
-            <Modal show={!!confirm} onHide={() => !busy && setConfirm(null)} centered backdrop="static" animation={false}>
+            <Modal show={!!confirm} onHide={close} centered backdrop="static" animation={false}>
                 <Modal.Header>
                     <Modal.Title as="h6">{confirm?.title}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body className="small">{confirm?.body}</Modal.Body>
                 <Modal.Footer>
-                    <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => setConfirm(null)}>取消</Button>
+                    <Button size="sm" variant="secondary" disabled={!!busy} onClick={close}>取消</Button>
                     <Button size="sm" variant={confirm?.variant} disabled={!!busy} onClick={runConfirmed}>
                         {busy ? (<><Spinner animation="border" size="sm" /> 处理中…</>) : confirm?.confirmLabel}
                     </Button>
@@ -368,11 +409,15 @@ const Popup: React.FC = () => {
                             </div>
                         )}
 
-                        {/* 次要入口：导出、清空各占半行 */}
+                        {/* 次要入口：导出、导入、清空各占一份 */}
                         <div className="minor-row">
-                            <button type="button" className="minor-link" disabled={!!busy || exporting} onClick={runExport}
+                            <button type="button" className="minor-link" disabled={!!busy || exporting || importing} onClick={runExport}
                                 title="把本地书签存成 JSON 文件，内容与上传到代码片段的一致">
                                 {exporting ? <Spinner animation="border" size="sm" /> : <AiOutlineExport />}导出本地书签
+                            </button>
+                            <button type="button" className="minor-link" disabled={!!busy || exporting || importing} onClick={runImport}
+                                title="读一个导出的 JSON 文件，整树覆盖当前本地书签（会覆盖现在的数据）">
+                                {importing ? <Spinner animation="border" size="sm" /> : spin('import', <AiOutlineImport />)}导入本地书签
                             </button>
                             <button type="button" className="minor-link danger-link" disabled={!!busy} onClick={confirmRemoveAll}
                                 title="清空本地浏览器书签，请先做好备份">
@@ -394,6 +439,10 @@ const Popup: React.FC = () => {
                         title={'当前版本 v' + VERSION + '，点击到 GitHub Releases 查询是否有新版本'}>
                         {checkingUpdate ? '检查中…' : '检查更新'}
                     </button>
+                    <button type="button" className="foot-link" onClick={openPreview}
+                        title="在新标签页里打开导出文件的预览与整理界面，不会改动浏览器书签">
+                        书签预览
+                    </button>
                 </span>
                 <a href="https://github.com/yc-2018/BookmarkHub" target="_blank" rel="noreferrer" title="开发者">
                     <AiOutlineGithub />yc-2018
@@ -405,17 +454,14 @@ const Popup: React.FC = () => {
     )
 }
 
-/** 导出文件名用的本地时间戳 yyyyMMdd-HHmmss */
-function fileStamp(d: Date): string {
-    const p = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
-}
+/** 导出文件名用的本地时间戳在 utils/bookmarkFile.ts 里，预览页也要用同一份 */
 
 function successText(action: Action): string {
     switch (action) {
         case 'upload': return '上传成功'
         case 'download': return '下载成功，本地书签已更新'
         case 'removeAll': return '本地书签已清空'
+        case 'import': return '导入成功，本地书签已更新'
     }
 }
 

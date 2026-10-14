@@ -41,6 +41,8 @@ export default defineBackground(() => {
         return runExclusive(OperType.SYNC, uploadBookmarks)
       case 'download':
         return runExclusive(OperType.SYNC, () => downloadBookmarks(msg.remoteBookmarks))
+      case 'import':
+        return runExclusive(OperType.SYNC, () => importBookmarks(msg.bookmarks))
       case 'removeAll':
         return runExclusive(OperType.REMOVE, removeAllBookmarks)
       case 'compare':
@@ -240,16 +242,7 @@ export default defineBackground(() => {
         bookmarks = syncdata.bookmarks
       }
 
-      const localTree = await getBookmarks()   // 刷新 curBrowserType，建树时需要
-      // 建树只能把书签放进浏览器已有的根目录。Chrome/Edge 未必有「移动设备书签」（id "3"），
-      // 缺了它 create 会失败、整棵子树被丢掉，而本地这时已经被清空 —— 所以先拦下来再动手。
-      const lost = findUnplaceableRoots(bookmarks, new Set((localTree[0]?.children ?? []).map(c => c.id)))
-      if (lost.length > 0) {
-        const detail = lost.map(l => `${l.name}（${l.count} 条）`).join('、')
-        throw new Error(`当前浏览器缺少这些根目录：${detail}，继续下载会丢掉它们，已取消。可以改用「上传」以本地覆盖远端`)
-      }
-      await clearBookmarkTree()
-      await createBookmarkTree(bookmarks)
+      await restoreBookmarks(bookmarks)
       const count = getBookmarkCount(bookmarks)
       await browser.storage.local.set({ remoteCount: count })
       return { ok: true, remoteCount: count, localCount: count }
@@ -260,6 +253,42 @@ export default defineBackground(() => {
       await notify("下载书签", `错误：${reason}`)
       return { ok: false, error: reason }
     }
+  }
+
+  /**
+   * 用本地文件里的书签覆盖本地浏览器书签。
+   * 数据由弹窗读文件后传进来（service worker 里没有 FileReader 可用的用户手势）。
+   * 不写 remoteCount —— 那个数代表「下载与对比那一侧」，从文件导入跟远端没关系。
+   */
+  async function importBookmarks(bookmarks?: BookmarkInfo[]): Promise<OperResult> {
+    try {
+      if (!bookmarks || bookmarks.length === 0) {
+        throw new Error('导入的文件里没有书签数据')
+      }
+      const count = await restoreBookmarks(bookmarks)
+      return { ok: true, localCount: count, message: `导入成功，本地书签已替换为文件里的 ${count} 个` }
+    }
+    catch (error: any) {
+      console.error(error)
+      const reason = await describeError(error)
+      await notify("导入本地书签", `错误：${reason}`)
+      return { ok: false, error: reason }
+    }
+  }
+
+  /** 清空本地书签树再按给定数据重建，返回写入的书签数。download 与 import 共用。 */
+  async function restoreBookmarks(bookmarks: BookmarkInfo[]): Promise<number> {
+    const localTree = await getBookmarks()   // 刷新 curBrowserType，建树时需要
+    // 建树只能把书签放进浏览器已有的根目录。Chrome/Edge 未必有「移动设备书签」（id "3"），
+    // 缺了它 create 会失败、整棵子树被丢掉，而本地这时已经被清空 —— 所以先拦下来再动手。
+    const lost = findUnplaceableRoots(bookmarks, new Set((localTree[0]?.children ?? []).map(c => c.id)))
+    if (lost.length > 0) {
+      const detail = lost.map(l => `${l.name}（${l.count} 条）`).join('、')
+      throw new Error(`当前浏览器缺少这些根目录：${detail}，继续会丢掉它们，已取消。可以改用「上传」以本地覆盖远端`)
+    }
+    await clearBookmarkTree()
+    await createBookmarkTree(bookmarks)
+    return getBookmarkCount(bookmarks)
   }
 
   async function removeAllBookmarks(): Promise<OperResult> {

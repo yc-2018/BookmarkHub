@@ -73,15 +73,15 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 
 - **WXT** 负责生成 manifest 和整个构建流程
 - `wxt.config.ts` 定义扩展 API、权限、manifest 字段，以及 `zip.excludeSources`
-- 入口位于 `src/entrypoints/`：`background.ts`、`popup/`、`options/`
+- 入口位于 `src/entrypoints/`：`background.ts`、`popup/`、`options/`、`manager/`（书签预览页，产出 `manager.html`）
 
 ### 后台服务（`src/entrypoints/background.ts`）
 
 所有书签写操作的唯一出口，同时是弹窗的消息中枢。
 
-- 消息分发：`upload` / `download` / `removeAll` / `compare`（设置已并入弹窗标签页，不再有 `setting` 消息）
-- 对外操作：`uploadBookmarks()`、`downloadBookmarks(remoteBookmarks?)`、`removeAllBookmarks()`、`compareBookmarks()`
-- 内部实现：`clearBookmarkTree()`、`createBookmarkTree()`、`getBookmarks()`、`refreshLocalCount()`
+- 消息分发：`upload` / `download` / `removeAll` / `compare` / `import`（设置已并入弹窗标签页，不再有 `setting` 消息）
+- 对外操作：`uploadBookmarks()`、`downloadBookmarks(remoteBookmarks?)`、`importBookmarks(bookmarks)`、`removeAllBookmarks()`、`compareBookmarks()`
+- 内部实现：`restoreBookmarks()`（清空 + 建树，download 与 import 共用，含根目录缺失检查）、`clearBookmarkTree()`、`createBookmarkTree()`、`getBookmarks()`、`refreshLocalCount()`
 - 监听书签变动，在非同步期间点亮「有未同步改动」角标
 
 ### 同步流程
@@ -90,11 +90,24 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 2. **下载**：拉 Gist → 先用 `findUnplaceableRoots()` 检查远端根分类在当前浏览器都有落点（缺「移动设备书签」这类根目录时直接报错取消，此时本地还没被清空）→ 清空本地树 → 按当前浏览器的 ID 规则重建
 3. **对比**：拉 Gist → 与本地归一化树比对 → 返回 `DiffResult`，**同时回传远端树**，供用户随后选择「下载覆盖本地」时复用，避免二次请求
 
+### 本地文件流（导出 / 导入 / 书签预览页）
+
+这三样东西是同一条链路，用的是**同一种数据**：文件内容就是上传到代码片段的那份 `SyncDataInfo`（根分类是 `RootBookmarksType` 的标识名，节点只有 `title`/`url`/`children`），所以「导出 → 在预览页里改 → 导入回浏览器」能闭环，导出的文件也能直接贴进片段里。全程不碰网络。
+
+- **导出**：弹窗次要入口，`formatBookmarks` + `buildSyncData` + `downloadJson`，文件名 `BookmarkHub-<时间戳>.json`
+- **导入**：弹窗次要入口，位置在导出与清空之间。**文件必须在弹窗里读**（service worker 里没有 FileReader，也没有用户手势），解析成功后先弹确认框写明「会覆盖现在的数据」，用户确认了才把书签数组发给后台的 `import`
+- **`import` 不写 `remoteCount`**：那个数代表「下载与对比那一侧」的数量，从本地文件导入与远端无关。除此之外它和 `download` 完全同路（`restoreBookmarks`），根目录缺失检查也一样
+- **书签预览页**（`src/entrypoints/manager/`，页脚「书签预览」在新标签页打开 `manager.html`）：只读写文件内容，**绝不碰浏览器真实书签** —— 覆盖本地这一步永远只发生在弹窗的「导入本地书签」里，确认框也在那儿。页面自己的「导入/导出」只是换文件
+  - `tree.ts` 是工作副本的模型：节点带 `uid` 用于定位，导出时 `toPlain` 剥掉。**字段名故意不叫 `id`**：`BookmarkInfo.id` 是 `string`，重名会让 `Node[]` 不能直接喂给 `getBookmarkCount` 这类收 `BookmarkInfo[]` 的公共函数
+  - **根分类不许改名或删除**（`ListPane` 的 `locked`）：那几个标识名是在线格式的一部分，改了导入时 `rootParentId()` 认不出来，整棵子树会落到默认文件夹里
+  - 「有未导出的修改」才显示右上角那个醒目的导出按钮，同时挂 `beforeunload` 拦一道；顶部 ⋮ 菜单里的「导出书签」则一直可用
+
 ### 工具层（`src/utils/`）
 
 | 文件 | 职责 |
 |---|---|
 | `bookmarks.ts` | 书签树处理：`formatBookmarks`（归一化，**深拷贝不改入参**，节点按 `SYNC_FIELDS` 白名单只留 `title`/`url`/`children`）、`getBookmarkCount`、`detectBrowserType`、根目录中文展示名映射 |
+| `bookmarkFile.ts` | 导出 / 导入 / 预览页共用的文件层：`parseBookmarkFile`（容错解析，顺带按白名单清洗）、`buildSyncData`、`downloadJson`、`pickJsonFile`、`fileStamp` |
 | `diff.ts` | 本地与远端比对：`flattenBookmarks`、`diffBookmarks`、`DiffResult` |
 | `messages.ts` | 弹窗与后台之间的消息类型 `OperMessage` / `OperResult`，以及 `sendOper()` |
 | `services.ts` | `BookmarkService`，封装代码片段的读写；Gitee 分支负责 emoji 转义与 JSON 请求体 |
@@ -200,7 +213,9 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
 - 未完成配置时隐藏上传/下载/对比，只显示引导去「设置」标签页 —— 这些操作没有令牌和片段 ID 必然失败。**首次读取发现未配置会直接把初始标签页设为「设置」**，省掉一次点击；只在首次生效，用户之后手动切回「同步」或正在输入时不会被拽走
 - 改完界面要实机验证渲染，类型检查和构建发现不了布局问题。本机装有 Chrome 155 和 Edge，用独立的临时 `--user-data-dir` 通过 CDP 加载 `.output/chrome-mv3` 截图，不要碰用户自己的 profile（`browser-cdp` 技能的启动脚本会杀掉用户正在运行的 Chrome 并复制其真实 profile，不要用）
 - **CDP 模拟事件必须贴近真实**：按 `input` → `change` 顺序派发；且 React 对单选框/复选框的 `onChange` 实际绑定在 `click` 上，只派发 `change` 不会触发它。验证交互优先用 `Input.dispatchMouseEvent` 真实点击。多个同类元素（比如两个平台各有一个指引入口）要用「取可见的那个」而非 `querySelector`
-- 弹窗页脚有「检查更新」，**纯手动点击**：拉 `api.github.com/repos/yc-2018/BookmarkHub/releases/latest`（现有 `*.github.com` host 权限已覆盖 api 子域，不用加权限；匿名每小时 60 次，手动点足够），与 `browser.runtime.getManifest().version` 比对，结果复用顶部提示条，有新版时附「去更新」链接到该版本的发行页。扩展是 zip + 加载已解压分发，浏览器不会替它自动更新，所以只能提示用户去下载覆盖安装；不要改成后台定时检查，理由同自动同步。页脚是同步/设置两个标签页共用的，放这里不会撑高 586px 的设置页
+- 弹窗页脚有「检查更新」和「书签预览」，页脚是同步/设置两个标签页共用的，放这里不会撑高 586px 的设置页
+- **书签预览页不受弹窗那套约束**：它是独立标签页，自带 `manager.css`（没有 Bootstrap，react-icons 之外不依赖 UI 库），布局照 Chrome 书签管理器做 —— 顶栏 + 左侧目录树 + 右侧列表，空状态是一个超大的导入入口（21px 字、可拖文件进去）。确认类操作用页面原生 `window.confirm` 就行，它不是弹窗，没有 600px 高度上限
+- 「检查更新」**纯手动点击**：拉 `api.github.com/repos/yc-2018/BookmarkHub/releases/latest`（现有 `*.github.com` host 权限已覆盖 api 子域，不用加权限；匿名每小时 60 次，手动点足够），与 `browser.runtime.getManifest().version` 比对，结果复用顶部提示条，有新版时附「去更新」链接到该版本的发行页。扩展是 zip + 加载已解压分发，浏览器不会替它自动更新，所以只能提示用户去下载覆盖安装；不要改成后台定时检查，理由同自动同步
 
 ## 其他注意事项
 

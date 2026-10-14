@@ -1,0 +1,690 @@
+/* 书签预览页：整体照着 Chrome 书签管理器的布局做 —— 顶栏 + 左侧目录树 + 右侧列表。
+   这个页面只操作「导出的 JSON 文件」，不碰浏览器真实书签，所以不需要确认框那套。 */
+
+:root {
+    --mg-line: #e0e0e0;
+    --mg-text: #202124;
+    --mg-sub: #5f6368;
+    --mg-blue: #1a73e8;
+    --mg-blue-soft: #e8f0fe;
+    --mg-hover: #f1f3f4;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--mg-text);
+    background: #fff;
+}
+
+button {
+    font-family: inherit;
+}
+
+.mg-app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* ========== 顶栏 ========== */
+
+.mg-head {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .55rem 1rem;
+    border-bottom: 1px solid var(--mg-line);
+    flex: none;
+}
+
+.mg-brand {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: 16px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.mg-brand svg {
+    width: 1.35rem;
+    height: 1.35rem;
+    color: #f6bf26;
+}
+
+.mg-brand-sub {
+    font-size: 11px;
+    color: var(--mg-sub);
+    font-weight: 400;
+    background: var(--mg-hover);
+    border-radius: 10rem;
+    padding: .1rem .5rem;
+}
+
+.mg-search {
+    position: relative;
+    flex: 1 1 auto;
+    max-width: 40rem;
+    margin: 0 auto;
+}
+
+.mg-search svg {
+    position: absolute;
+    left: .7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1rem;
+    height: 1rem;
+    color: var(--mg-sub);
+}
+
+.mg-search input {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: #f1f3f4;
+    border-radius: 10rem;
+    padding: .5rem .9rem .5rem 2.3rem;
+    font-size: 13px;
+    color: var(--mg-text);
+}
+
+.mg-search input:focus {
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(32, 33, 36, .28);
+}
+
+.mg-head-right {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    flex: none;
+}
+
+/* 改过之后出现的导出按钮：这是页面上唯一能把修改带走的出口，必须非常显眼 */
+.mg-export {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    border: none;
+    border-radius: 10rem;
+    background: var(--mg-blue);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    padding: .5rem 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(26, 115, 232, .5);
+    animation: mg-pop .25s ease-out;
+}
+
+.mg-export:hover {
+    background: #1b66c9;
+}
+
+.mg-export svg {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.mg-export-dot {
+    width: .45rem;
+    height: .45rem;
+    border-radius: 50%;
+    background: #fbbc04;
+    box-shadow: 0 0 0 0 rgba(251, 188, 4, .9);
+    animation: mg-pulse 1.8s infinite;
+}
+
+@keyframes mg-pop {
+    from {
+        transform: scale(.85);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes mg-pulse {
+    70% {
+        box-shadow: 0 0 0 .45rem rgba(251, 188, 4, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(251, 188, 4, 0);
+    }
+}
+
+.mg-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    background: none;
+    border-radius: 50%;
+    color: var(--mg-sub);
+    cursor: pointer;
+}
+
+.mg-icon-btn:hover {
+    background: var(--mg-hover);
+    color: var(--mg-text);
+}
+
+.mg-icon-btn svg {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.mg-dirty-note {
+    font-size: 11.5px;
+    color: #b06000;
+    white-space: nowrap;
+}
+
+/* ========== 主体 ========== */
+
+.mg-body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.mg-side {
+    width: 15rem;
+    flex: none;
+    overflow-y: auto;
+    padding: .6rem .4rem 2rem;
+    border-right: 1px solid #f1f3f4;
+}
+
+.mg-tree-row {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    width: 100%;
+    border: none;
+    background: none;
+    text-align: left;
+    padding: .35rem .5rem;
+    border-radius: 0 10rem 10rem 0;
+    cursor: pointer;
+    color: var(--mg-text);
+    font-size: 13px;
+}
+
+.mg-tree-row:hover {
+    background: var(--mg-hover);
+}
+
+.mg-tree-row.active {
+    background: var(--mg-blue-soft);
+    color: var(--mg-blue);
+    font-weight: 500;
+}
+
+.mg-tree-row.active .mg-tree-folder {
+    color: var(--mg-blue);
+}
+
+.mg-tree-caret {
+    width: 1rem;
+    height: 1rem;
+    flex: none;
+    color: var(--mg-sub);
+    border-radius: 50%;
+}
+
+.mg-tree-caret.hidden {
+    visibility: hidden;
+}
+
+.mg-tree-folder {
+    width: 1.05rem;
+    height: 1.05rem;
+    flex: none;
+    color: var(--mg-sub);
+}
+
+.mg-tree-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mg-tree-count {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--mg-sub);
+    flex: none;
+}
+
+/* ========== 列表 ========== */
+
+.mg-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 1rem 1.5rem 3rem;
+    background: #fff;
+}
+
+.mg-crumb {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: 12px;
+    color: var(--mg-sub);
+    margin-bottom: .6rem;
+    flex-wrap: wrap;
+}
+
+.mg-crumb button {
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--mg-sub);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.mg-crumb button:hover {
+    color: var(--mg-blue);
+    text-decoration: underline;
+}
+
+.mg-crumb-cur {
+    color: var(--mg-text);
+    font-weight: 500;
+}
+
+.mg-list {
+    max-width: 58rem;
+    margin: 0 auto;
+    border: 1px solid #f1f3f4;
+    border-radius: .5rem;
+    box-shadow: 0 1px 2px rgba(60, 64, 67, .1);
+    overflow: hidden;
+}
+
+.mg-row {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .55rem .9rem;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.mg-row:last-child {
+    border-bottom: none;
+}
+
+.mg-row:hover {
+    background: #f8f9fa;
+}
+
+.mg-row-icon {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex: none;
+    color: var(--mg-sub);
+}
+
+.mg-row-open {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    background: none;
+    text-align: left;
+    padding: 0;
+    cursor: pointer;
+    color: var(--mg-text);
+    font-size: 13px;
+}
+
+.mg-row-open.plain {
+    cursor: default;
+}
+
+.mg-row-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mg-row-url {
+    font-size: 11px;
+    color: var(--mg-sub);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mg-row-path {
+    font-size: 11px;
+    color: var(--mg-sub);
+}
+
+.mg-row-tools {
+    display: flex;
+    align-items: center;
+    gap: .15rem;
+    flex: none;
+    opacity: 0;
+}
+
+.mg-row:hover .mg-row-tools,
+.mg-row-tools:focus-within {
+    opacity: 1;
+}
+
+.mg-row-tools .mg-icon-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.mg-row-tools .mg-icon-btn svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.mg-empty-folder {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--mg-sub);
+    font-size: 12.5px;
+}
+
+/* ========== 空状态：超大导入入口 ========== */
+
+.mg-blank {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+}
+
+.mg-drop {
+    width: min(42rem, 100%);
+    border: 3px dashed #c6d4ea;
+    border-radius: 1.25rem;
+    padding: 3.5rem 2rem;
+    background: #fafbff;
+    transition: background .15s, border-color .15s;
+}
+
+.mg-drop.over {
+    border-color: var(--mg-blue);
+    background: var(--mg-blue-soft);
+}
+
+.mg-drop-mark {
+    width: 4rem;
+    height: 4rem;
+    color: #b9c6dd;
+    margin-bottom: 1rem;
+}
+
+.mg-blank-title {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: .6rem;
+}
+
+.mg-blank-text {
+    font-size: 13.5px;
+    color: var(--mg-sub);
+    line-height: 1.9;
+    margin-bottom: 1.75rem;
+}
+
+.mg-blank-text code {
+    background: var(--mg-hover);
+    border-radius: .25rem;
+    padding: .05rem .3rem;
+    font-size: 12.5px;
+    color: #b06000;
+}
+
+/* 这就是用户进来第一眼该看到的东西，所以给到按钮能给的最大体量 */
+.mg-import-big {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .75rem;
+    border: none;
+    border-radius: 10rem;
+    background: var(--mg-blue);
+    color: #fff;
+    font-size: 21px;
+    font-weight: 600;
+    padding: 1.15rem 3.5rem;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(26, 115, 232, .4);
+}
+
+.mg-import-big:hover {
+    background: #1b66c9;
+    box-shadow: 0 6px 20px rgba(26, 115, 232, .5);
+}
+
+.mg-import-big svg {
+    width: 1.7rem;
+    height: 1.7rem;
+}
+
+.mg-blank-hint {
+    margin-top: 1.1rem;
+    font-size: 12px;
+    color: #80868b;
+}
+
+/* ========== 下拉菜单 ========== */
+
+.mg-menu-wrap {
+    position: relative;
+}
+
+.mg-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + .25rem);
+    z-index: 20;
+    min-width: 11rem;
+    background: #fff;
+    border-radius: .35rem;
+    box-shadow: 0 2px 6px 2px rgba(60, 64, 67, .15), 0 1px 2px rgba(60, 64, 67, .3);
+    padding: .3rem 0;
+}
+
+.mg-menu.up {
+    top: auto;
+    bottom: calc(100% + .25rem);
+}
+
+.mg-menu button {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    width: 100%;
+    border: none;
+    background: none;
+    text-align: left;
+    padding: .5rem 1rem;
+    font-size: 13px;
+    color: var(--mg-text);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.mg-menu button:hover {
+    background: var(--mg-hover);
+}
+
+.mg-menu button:disabled {
+    color: #bdc1c6;
+    cursor: default;
+    background: none;
+}
+
+.mg-menu button svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    color: var(--mg-sub);
+    flex: none;
+}
+
+.mg-menu button:disabled svg {
+    color: #bdc1c6;
+}
+
+.mg-menu-sep {
+    height: 1px;
+    background: var(--mg-line);
+    margin: .3rem 0;
+}
+
+.mg-menu-danger {
+    color: #c5221f !important;
+}
+
+.mg-menu-danger svg {
+    color: #c5221f !important;
+}
+
+/* ========== 编辑对话框 ========== */
+
+.mg-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(32, 33, 36, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+.mg-dialog {
+    width: min(26rem, 92vw);
+    background: #fff;
+    border-radius: .5rem;
+    padding: 1.1rem 1.25rem 1rem;
+    box-shadow: 0 4px 16px rgba(32, 33, 36, .35);
+}
+
+.mg-dialog h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 .9rem;
+}
+
+.mg-field {
+    margin-bottom: .8rem;
+}
+
+.mg-field label {
+    display: block;
+    font-size: 11.5px;
+    color: var(--mg-sub);
+    margin-bottom: .2rem;
+}
+
+.mg-field input {
+    width: 100%;
+    border: 1px solid #dadce0;
+    border-radius: .25rem;
+    padding: .45rem .55rem;
+    font-size: 13px;
+    outline: none;
+}
+
+.mg-field input:focus {
+    border-color: var(--mg-blue);
+}
+
+.mg-dialog-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin-top: 1rem;
+}
+
+.mg-btn {
+    border: none;
+    background: none;
+    border-radius: .25rem;
+    padding: .45rem .9rem;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--mg-blue);
+    cursor: pointer;
+}
+
+.mg-btn:hover {
+    background: var(--mg-blue-soft);
+}
+
+.mg-btn-primary {
+    background: var(--mg-blue);
+    color: #fff;
+}
+
+.mg-btn-primary:hover {
+    background: #1b66c9;
+}
+
+.mg-btn-danger {
+    color: #c5221f;
+}
+
+.mg-btn-danger:hover {
+    background: #fce8e6;
+}
+
+/* ========== 提示条 ========== */
+
+.mg-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.5rem;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    background: #323639;
+    color: #fff;
+    border-radius: .3rem;
+    padding: .65rem 1.1rem;
+    font-size: 13px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .3);
+    max-width: 80vw;
+}
+
+.mg-toast svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex: none;
+}
+
+.mg-toast.bad svg {
+    color: #f28b82;
+}
+
+.mg-toast.good svg {
+    color: #81c995;
+}
