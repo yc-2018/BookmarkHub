@@ -110,27 +110,62 @@ export function downloadJson(fileName: string, text: string) {
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-/** 让用户挑一个文件并读成文本；取消时返回 null */
+/**
+ * 让用户挑一个文件并读成文本；取消时返回 null。
+ *
+ * **这个 promise 必须在用户取消时也 settle**：调用方在 await 之前就点亮了加载态，
+ * 悬着不决就等于按钮一直转、整排操作卡死（1.7.0 实际踩过）。取消的信号有两路：
+ * `cancel` 事件（Chrome 113+ / Firefox 109+ 有），再加上「窗口重新拿到焦点却没有选中文件」兜底。
+ */
 export function pickJsonFile(): Promise<{ name: string, text: string } | null> {
     return new Promise((resolve, reject) => {
         const input = document.createElement('input')
         input.type = 'file'
         input.accept = '.json,application/json'
         input.style.display = 'none'
-        // 取消选择不会派发任何事件（cancel 事件较新且弹窗里不可靠），
-        // 所以不 resolve 也无妨：调用方只在真的选了文件之后才继续。
-        input.onchange = () => {
-            const file = input.files?.[0]
+
+        let settled = false
+        const cleanup = () => {
+            window.removeEventListener('focus', onRefocus)
             input.remove()
+        }
+        const done = (value: { name: string, text: string } | null) => {
+            if (!settled) {
+                settled = true
+                cleanup()
+                resolve(value)
+            }
+        }
+        const fail = (e: Error) => {
+            if (!settled) {
+                settled = true
+                cleanup()
+                reject(e)
+            }
+        }
+        // 选好文件后窗口也会重新拿到焦点，而且 focus 可能比 change 先到，
+        // 所以延后一拍再看 files：真的选了就不是取消。
+        function onRefocus() {
+            setTimeout(() => {
+                if (!input.files || input.files.length === 0) {
+                    done(null)
+                }
+            }, 400)
+        }
+
+        input.addEventListener('cancel', () => done(null))
+        input.addEventListener('change', () => {
+            const file = input.files?.[0]
             if (!file) {
-                resolve(null)
+                done(null)
                 return
             }
             const reader = new FileReader()
-            reader.onload = () => resolve({ name: file.name, text: String(reader.result ?? '') })
-            reader.onerror = () => reject(new Error('读取文件失败'))
+            reader.onload = () => done({ name: file.name, text: String(reader.result ?? '') })
+            reader.onerror = () => fail(new Error('读取文件失败'))
             reader.readAsText(file)
-        }
+        })
+        window.addEventListener('focus', onRefocus)
         document.body.appendChild(input)
         input.click()
     })
