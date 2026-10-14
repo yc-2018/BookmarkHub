@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { AiOutlineDown, AiOutlineFolder, AiOutlineRight, AiOutlineStar } from 'react-icons/ai'
 import { Node, contains, label } from './tree'
-import { DRAG_TYPE } from './ListPane'
+import { DRAG_TYPE, DropWhere, dragPill } from './ListPane'
 import { getBookmarkCount } from '../../utils/bookmarks'
 
 interface Props {
@@ -14,18 +14,38 @@ interface Props {
     onMenu: (node: Node, x: number, y: number) => void
     /** 正在拖的节点，用来判断能不能往这个文件夹里放 */
     dragNode: Node | null
-    onMove: (dragUid: number, targetUid: number) => void
+    dragUid: number | null
+    onDragStart: (uid: number) => void
+    onDragEnd: () => void
+    onMove: (dragUid: number, targetUid: number, where: DropWhere) => void
 }
 
-/** 左侧目录树：只列文件夹，和 Chrome 书签管理器一样。也是跨文件夹拖放的落点 */
+/**
+ * 左侧目录树：只列文件夹，和 Chrome 书签管理器一样。
+ * 文件夹可以从这里拖走，也可以当落点 —— 行中间是「放进去」，上下两端是「插到前后」。
+ */
 export const Sidebar: React.FC<Props> = ({
-    roots, selected, onSelect, expanded, onToggle, onMenu, dragNode, onMove,
+    roots, selected, onSelect, expanded, onToggle, onMenu,
+    dragNode, dragUid, onDragStart, onDragEnd, onMove,
 }) => {
-    const [over, setOver] = useState<number | null>(null)
+    const [over, setOver] = useState<{ uid: number, where: DropWhere } | null>(null)
 
     // dragNode 只用来决定要不要给高亮：不能把文件夹拖进自己或自己的子孙里。
     // 真正的拦截在 manager 的 moveNode 里（它拿得到整棵树），所以 drop 不依赖这个状态
-    const canDrop = (uid: number) => !dragNode || !contains(dragNode, uid)
+    const canDrop = (uid: number) => uid !== dragUid && (!dragNode || !contains(dragNode, uid))
+
+    /**
+     * 落点分区。根分类行只接受「放进去」：
+     * 它们的前后就是最外层，书签放到那儿导入时认不出根分类，会被塞进默认文件夹。
+     */
+    const zoneOf = (e: React.DragEvent, depth: number): DropWhere => {
+        if (depth === 0) {
+            return 'into'
+        }
+        const r = e.currentTarget.getBoundingClientRect()
+        const y = e.clientY - r.top
+        return y < r.height * 0.3 ? 'before' : y > r.height * 0.7 ? 'after' : 'into'
+    }
 
     const rows = (list: Node[], depth: number): React.ReactNode[] =>
         list.filter(n => !n.url).flatMap(node => {
@@ -35,8 +55,11 @@ export const Sidebar: React.FC<Props> = ({
             if (selected === node.uid) {
                 marks.push('active')
             }
-            if (over === node.uid) {
-                marks.push('drop-into')
+            if (dragUid === node.uid) {
+                marks.push('dragging')
+            }
+            if (over?.uid === node.uid) {
+                marks.push('drop-' + over.where)
             }
             const row = (
                 <button
@@ -44,23 +67,33 @@ export const Sidebar: React.FC<Props> = ({
                     type="button"
                     className={marks.join(' ')}
                     style={{ paddingLeft: `${0.5 + depth * 1.15}rem` }}
+                    draggable={depth > 0}
                     onClick={() => onSelect(node.uid)}
                     onContextMenu={e => { e.preventDefault(); onMenu(node, e.clientX, e.clientY) }}
+                    onDragStart={e => {
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData(DRAG_TYPE, String(node.uid))
+                        e.dataTransfer.setDragImage(dragPill(label(node, false)), 18, 18)
+                        onDragStart(node.uid)
+                    }}
+                    onDragEnd={() => { setOver(null); onDragEnd() }}
                     onDragOver={e => {
                         if (!e.dataTransfer.types.includes(DRAG_TYPE) || !canDrop(node.uid)) {
                             return
                         }
                         e.preventDefault()
                         e.dataTransfer.dropEffect = 'move'
-                        setOver(node.uid)
+                        const where = zoneOf(e, depth)
+                        setOver(prev => (prev?.uid === node.uid && prev.where === where ? prev : { uid: node.uid, where }))
                     }}
-                    onDragLeave={() => setOver(prev => (prev === node.uid ? null : prev))}
+                    onDragLeave={() => setOver(prev => (prev?.uid === node.uid ? null : prev))}
                     onDrop={e => {
                         e.preventDefault()
+                        const where = zoneOf(e, depth)
                         setOver(null)
                         const raw = e.dataTransfer.getData(DRAG_TYPE)
-                        if (raw) {
-                            onMove(Number(raw), node.uid)
+                        if (raw && Number(raw) !== node.uid) {
+                            onMove(Number(raw), node.uid, where)
                         }
                     }}
                     title={label(node, depth === 0)}

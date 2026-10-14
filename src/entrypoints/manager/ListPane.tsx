@@ -23,8 +23,8 @@ interface Props {
     onMove: (dragUid: number, targetUid: number, where: DropWhere) => void
 }
 
-/** 跟着光标走的小胶囊，照 Chrome 的拖拽反馈做 */
-function dragPill(text: string): HTMLElement {
+/** 跟着光标走的小胶囊，照 Chrome 的拖拽反馈做。列表和目录树共用 */
+export function dragPill(text: string): HTMLElement {
     const pill = document.createElement('div')
     pill.className = 'mg-drag-pill'
     pill.textContent = text || '(无标题)'

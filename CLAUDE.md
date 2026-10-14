@@ -104,6 +104,8 @@ rm -f .output/*.zip && pnpm run zip && pnpm run zip:firefox
   - 导入后默认选中「书签栏」（`defaultFolder()`）而不是最外层 —— 最外层只有几个根分类壳子
   - **拖放判定只看 `e.dataTransfer.types`，不看 React 状态**：`dragstart` 里 `setDragUid` 引发的状态更新未必赶在第一次 `dragover` 之前落地（合成事件同任务连发时必然赶不上），拿 `dragUid === null` 当「没在拖」会让整个落点失效。`dragUid` / `dragNode` 只用于视觉高亮和自我排除，真正拦「文件夹拖进自己子孙」的守卫在 `moveNode` 里（它拿得到整棵树）。`moveNode` 先摘后插，所以**落点必须在摘掉之后再定位**，否则下标错位；定位失败要把节点放回原位，别弄丢
   - 拖拽反馈：`setDragImage` 配一个 `.mg-drag-pill`（必须先挂进文档才截得到图，所以用 `position:fixed` 挪到视口外，下一拍再移除）；插入线用 inset 阴影画，不占位、行高不跳。文件夹行中间 30%~70% 是「放进去」，上下两端是「插到前后」
+  - **左侧目录树同样可拖**（拖出 + 当落点，与列表共用 `DRAG_TYPE`、`dragPill`、落点分区和 CSS）。两处例外：根分类行 `draggable={false}`；而且**根分类行只接受「放进去」**（`zoneOf` 在 `depth === 0` 时直接返回 `into`）—— 它们的前后就是最外层，书签插到那儿导入时 `rootParentId()` 认不出根分类，整项会被塞进默认文件夹
+  - 「拖进自己的子孙」在 `dragover` 阶段就不 `preventDefault`，于是浏览器根本不派发 `drop`，光标显示禁止 —— 和 Chrome 一致，不靠事后报错
   - 行尾 ⋮ 与右键**共用一份菜单**（`ContextMenu.tsx`，固定定位，否则会被可滚动容器裁掉）。右键先 `mousedown` 再 `contextmenu`，所以「关旧菜单 + 开新菜单」会在同一批 setState 里结算，不会双开或全关 —— 已实测
   - 剪贴板是页面内的 `clip` 状态：`cutFrom` 非空表示剪切，粘贴时先摘原件再定位落点；剪切后原件不在了就退回当前文件夹，不静默丢数据。粘贴出来的子树要 `reuid()` 重新发号，否则 uid 撞车、定位会打架
   - 「有未导出的修改」才显示右上角那个醒目的导出按钮，同时挂 `beforeunload` 拦一道；顶部 ⋮ 菜单里的「导出书签」则一直可用

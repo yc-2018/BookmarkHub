@@ -234,8 +234,11 @@ const Manager: React.FC = () => {
         })
     }
 
-    /** 拖到左侧目录树上：放进那个文件夹，并提示去哪儿了（它会从当前列表里消失） */
-    const moveIntoFolder = (from: number, target: number) => {
+    /**
+     * 从左侧目录树上拖放：行中间是放进那个文件夹，上下两端是插到它前后。
+     * 「放进去」会让节点离开当前列表，所以提示一下去哪儿了；单纯换顺序就不吵。
+     */
+    const moveFromTree = (from: number, target: number, where: DropWhere) => {
         if (!roots) {
             return
         }
@@ -248,8 +251,10 @@ const Manager: React.FC = () => {
             say(false, '不能把文件夹放进它自己里面')
             return
         }
-        moveNode(from, target, 'into')
-        say(true, `已移动到「${label(dest, roots.some(r => r.uid === target))}」`)
+        moveNode(from, target, where)
+        if (where === 'into') {
+            say(true, `已移动到「${label(dest, roots.some(r => r.uid === target))}」`)
+        }
     }
 
     /** 粘贴：文件夹就放进去，书签就插在它后面 */
@@ -445,7 +450,10 @@ const Manager: React.FC = () => {
                     })}
                     onMenu={(node, x, y) => setMenu({ node, x, y, locked: roots.some(r => r.uid === node.uid) })}
                     dragNode={dragUid === null ? null : locate(roots, dragUid)?.node ?? null}
-                    onMove={moveIntoFolder}
+                    dragUid={dragUid}
+                    onDragStart={setDragUid}
+                    onDragEnd={() => setDragUid(null)}
+                    onMove={moveFromTree}
                 />
                 <div className="mg-main">
                     <div className="mg-crumb">

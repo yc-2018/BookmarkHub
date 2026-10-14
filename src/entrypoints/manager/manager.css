@@ -424,12 +424,18 @@ button {
     opacity: .4;
 }
 
+.mg-tree-row.dragging {
+    opacity: .4;
+}
+
 /* 用 inset 阴影画插入线：不占位，行高不会跳 */
-.mg-row.drop-before {
+.mg-row.drop-before,
+.mg-tree-row.drop-before {
     box-shadow: inset 0 3px 0 0 var(--mg-blue);
 }
 
-.mg-row.drop-after {
+.mg-row.drop-after,
+.mg-tree-row.drop-after {
     box-shadow: inset 0 -3px 0 0 var(--mg-blue);
 }
 
